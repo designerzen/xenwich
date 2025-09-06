@@ -1,4 +1,4 @@
-import './style.css'
+
 import { createAudiotoolClient } from "@audiotool/nexus"
 import type { AudiotoolClient, SyncedDocument } from "@audiotool/nexus"
 
