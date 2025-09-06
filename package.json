@@ -1,18 +1,19 @@
 {
-  "name": "xen-audiotools-ts",
+  "name": "xenwich-audiotools",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.0.1",
   "type": "module",
   "start":"./src/index.ts",
   "scripts": {
     "dev": "vite",
     "start":"npm run dev",
-    "build": "tsc && vite build",
+    "build": "vite build",
     "preview": "vite preview"
   },
   "devDependencies": {
     "typescript": "~5.8.3",
-    "vite": "^7.1.2"
+    "vite": "^7.1.2",
+    "webmidi": "^3.1.12"
   },
   "dependencies": {
     "@audiotool/nexus": "file:audiotool-nexus-0.0.2.tgz"
