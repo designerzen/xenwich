@@ -672,8 +672,8 @@ async function handleTestGoldenPond(): Promise<any[]> {
       goldenData.mode = 0; // Major mode
       log('✓ Set mode to Major (0)');
 
-      // Set chord sequence - typical I-V-vi-IV progression in C major
-      goldenData.chordSeq = "71,74,75,71,<1,7(5/2),72,75,71"; // C - F - G - C
+      // Set chord sequence  
+      goldenData.chordSequence = "71,74,75,71,<1,7(5/2),72,75,71";  
       log('✓ Set chord sequence"');
 
       // Set BPM (beats per minute)
@@ -697,12 +697,13 @@ async function handleTestGoldenPond(): Promise<any[]> {
 
       // Generate notes
       const chords = goldenData.makeLineGenerator(0).generateNotes(0);
-      log(`Generated chords: ${chords}`);
-
+      log(`XXX Generated chords: ${chords}`);
+       
+      
       // Convert GoldenPond notes to Nexus format
       if (chords && chords.length > 0) {
         log('Converting GoldenPond notes to Nexus format...');
-
+        log(chords.length);
         const nexusNotes = convertGoldenPondNotesToNexus(chords);
 
         log(`Converted ${nexusNotes.length} notes to Nexus format:`);
