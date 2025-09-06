@@ -1,6 +1,26 @@
 
 import { createAudiotoolClient } from "@audiotool/nexus"
 import type { AudiotoolClient, SyncedDocument } from "@audiotool/nexus"
+// Import GoldenPond JavaScript directly
+import "../goldenpond/goldenpond.js"
+
+// Declare global types for TypeScript
+declare const globalThis: any;
+
+// Utility function to convert GoldenPond notes to Nexus format
+function convertGoldenPondNotesToNexus(goldenNotes: any[]): any[] {
+  return goldenNotes.map((goldenNote: any) => {
+    // Convert GoldenPond Note[chan: 0, note: 60, vel: 64, startTime: 0, length: 72] 
+    // to Nexus note format
+    return {
+      pitch: goldenNote.note || goldenNote.pitch || 60, // MIDI note number
+      positionTicks: Math.floor((goldenNote.startTime / 96 || 0) * QUARTER_NOTE), // Convert time to ticks
+      durationTicks: Math.floor(((goldenNote.length / 96) || 9600) * QUARTER_NOTE), // Convert length to ticks  
+      velocity: (goldenNote.vel || goldenNote.velocity || 64) / 127, // Convert MIDI velocity (0-127) to float (0-1)
+      slide: false
+    };
+  });
+}
 
 // Initialize the app
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
@@ -35,9 +55,11 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
       <div class="controls-section" style="display: none;">
         <h3>Audio Device Controls</h3>
         <button id="query-devices-btn">Query All Devices</button>
+        <button id="create-heisenberg-btn">Create Heisenberg Synth</button>
         <button id="create-note-track-btn">Create Note Track</button>
         <button id="list-notes-btn">List Notes in Project</button>
         <button id="create-note-btn">Create Note</button>
+        <button id="test-goldenpond-btn">Test GoldenPond Music Theory</button>
         <div style="margin-top: 1em;">
           <label for="pitch-offset" style="display: block; margin-bottom: 0.5em; font-size: 0.9em; color: #666;">
             Cents offset (100 cents = 1 semitone, 50 cents = quarter-tone):
@@ -65,6 +87,9 @@ const STORAGE_KEYS = {
   PAT_TOKEN: 'audiotool_nexus_pat_token',
   PROJECT_URL: 'audiotool_nexus_project_url'
 } as const;
+
+// Audio timing constants
+const QUARTER_NOTE = 15360 / 4; // 3840 ticks = 1 quarter note
 
 // Load saved values from localStorage
 function loadSavedValues(): void {
@@ -307,6 +332,73 @@ async function handleQueryDevices(): Promise<void> {
   }
 }
 
+async function handleCreateHeisenberg(): Promise<{ heisenberg: any, placement: any, mixerChannel?: any, mixerPlacement?: any, audioConnection?: any } | void> {
+  if (!nexus) {
+    log('Please connect to a project first');
+    return;
+  }
+
+  try {
+    log('Creating Heisenberg synth with mixer channel...');
+
+    const result = await nexus.modify((t) => {
+      // Create the Heisenberg synth
+      const heisenberg = t.create("heisenberg", {
+        gain: 0.7,
+        operators: [{ gain: 1, }, { gain: 1, }, { gain: 1, }, { gain: 1, }],
+        playModeIndex: 3, // Polyphonic mode
+        tuneFactor: 0,
+        glideMs: 0,
+        unisonoCount: 1,
+        unisonoDetuneCents: 10,
+        unisonoSpreadFactor: 0.5,
+        velocityFactor: 1,
+        operatorModeIndex: 1,
+        isActive: true
+      });
+
+      // Create desktop placement for the synth
+      const placement = t.create("desktopPlacement", {
+        entity: heisenberg.location,
+        x: 100 + Math.floor(Math.random() * 400), // Random position
+        y: 100 + Math.floor(Math.random() * 300),
+      });
+
+      // Create mixer channel for the Heisenberg
+      const mixerChannel = t.create("mixerChannel", {});
+      const out = t.entities.ofTypes("mixerOut").getOne();
+
+      if (out) {
+        t.create("mixerStripCable", {
+          childStrip: mixerChannel.fields.stripOutput.location,
+          parentStrip: out.location
+        });
+      };
+      // Try to create audio connection from Heisenberg to mixer channel
+      const audioConnection = t.create("audioConnection", {
+        fromSocket: heisenberg.fields.audioOutput.location,
+        toSocket: mixerChannel.fields.audioInput.location
+      });
+
+
+      return { heisenberg, placement, mixerChannel, audioConnection };
+    });
+
+    log(`Created Heisenberg synth with ID: ${result.heisenberg.id}`);
+    log(`Placed at position (${result.placement.fields.x.value}, ${result.placement.fields.y.value})`);
+    if (result.mixerChannel) {
+      log(`Created mixer channel with ID: ${result.mixerChannel.id}`);
+      log(`Connected Heisenberg to mixer channel via audio connection: ${result.audioConnection.id}`);
+    }
+    log('Heisenberg synth with mixer channel ready for use!');
+
+    return result;
+
+  } catch (error) {
+    log('Error creating Heisenberg synth: ' + (error as Error).message);
+  }
+}
+
 async function handleCreateNoteTrack(): Promise<void> {
   if (!nexus) {
     log('Please connect to a project first');
@@ -543,6 +635,96 @@ async function handleClearTunings(): Promise<void> {
   }
 }
 
+async function handleTestGoldenPond(): Promise<any[]> {
+  try {
+    log('Testing GoldenPond music theory library...');
+
+    // Test basic functionality by checking global exports
+    if (typeof globalThis.LineGenerator !== 'undefined') {
+      log('✓ LineGenerator class available');
+    } else {
+      log('✗ LineGenerator class not found');
+    }
+
+    if (typeof globalThis.ChordProgression !== 'undefined') {
+      log('✓ ChordProgression class available');
+    } else {
+      log('✗ ChordProgression class not found');
+    }
+
+    if (typeof globalThis.GoldenData !== 'undefined') {
+      log('✓ GoldenData class available');
+    } else {
+      log('✗ GoldenData class not found');
+    }
+
+    // Create and configure GoldenData using global classes directly
+    try {
+      log('Creating GoldenData instance with musical configuration...');
+
+      const goldenData = new globalThis.GoldenData();
+
+      // Set root note (C = 0, C# = 1, D = 2, etc.)
+      goldenData.root = 60; // C
+      log('✓ Set root to C (60)');
+
+      // Set mode (0 = Major, 1 = Minor, etc. - depends on GoldenPond's mode enum)
+      goldenData.mode = 0; // Major mode
+      log('✓ Set mode to Major (0)');
+
+      // Set chord sequence - typical I-V-vi-IV progression in C major
+      goldenData.chordSeq = "71,74,75,71,<1,7(5/2),72,75,71"; // C - F - G - C
+      log('✓ Set chord sequence"');
+
+      // Set BPM (beats per minute)
+      goldenData.bpm = 120;
+      log('✓ Set BPM to 120');
+
+      // Set duration
+      goldenData.dur = 4;
+      log('✓ Set duration to 4');
+
+      log('GoldenData configuration:');
+      log(`  Root: ${goldenData.root} (C)`);
+      log(`  Mode: ${goldenData.mode} (Major)`);
+      log(`  Chord Sequence: ${goldenData.chordSeq}`);
+      log(`  BPM: ${goldenData.bpm}`);
+      log(`  Duration: ${goldenData.dur} bars`);
+
+      // Add a line using MidiInstrumentContext
+      goldenData.addLine("3/8 > 2", new globalThis.MidiInstrumentContext(0, 64, 0.75, 0));
+      log('✓ Added musical line to GoldenData');
+
+      // Generate notes
+      const chords = goldenData.makeLineGenerator(0).generateNotes(0);
+      log(`Generated chords: ${chords}`);
+
+      // Convert GoldenPond notes to Nexus format
+      if (chords && chords.length > 0) {
+        log('Converting GoldenPond notes to Nexus format...');
+
+        const nexusNotes = convertGoldenPondNotesToNexus(chords);
+
+        log(`Converted ${nexusNotes.length} notes to Nexus format:`);
+        nexusNotes.forEach((note: any, index: number) => {
+          log(`  Note ${index + 1}: Pitch=${note.pitch}, Position=${note.positionTicks}t, Duration=${note.durationTicks}t, Velocity=${note.velocity}`);
+        });
+
+        return nexusNotes;
+      }
+
+    } catch (error) {
+      log('✗ Error creating/configuring GoldenData: ' + (error as Error).message);
+    }
+
+    log('GoldenPond test completed!');
+    return [];
+  } catch (error) {
+    log('Error testing GoldenPond: ' + (error as Error).message);
+    return [];
+  }
+}
+
 // Connect with PAT token
 document.getElementById('connect-btn')!.addEventListener('click', async () => {
   const patToken = (document.getElementById('pat-input') as HTMLInputElement).value.trim();
@@ -569,6 +751,62 @@ document.getElementById('open-project-btn')!.addEventListener('click', async () 
 // Query all devices
 document.getElementById('query-devices-btn')!.addEventListener('click', async () => {
   await handleQueryDevices();
+});
+
+// Create Heisenberg synth
+document.getElementById('create-heisenberg-btn')!.addEventListener('click', async () => {
+  const result = await handleCreateHeisenberg();
+  if (result) {
+    const { heisenberg, placement } = result;
+    log(`Event listener: Got Heisenberg synth ${heisenberg.id} at position (${placement.fields.x.value}, ${placement.fields.y.value})`);
+
+    // Create a note track using this Heisenberg synth as the player
+    try {
+      // Generate notes outside of the transaction first
+      const notes = await handleTestGoldenPond();
+
+      const trackResult = await nexus!.modify((t) => {
+        // Create a note track for the Heisenberg synth
+        const noteTrack = t.create("noteTrack", {
+          orderAmongTracks: 0,
+          player: heisenberg.location,
+        });
+
+        // Create a note collection for the track
+        const noteCollection = t.create("noteCollection", {});
+
+        // Add a note region with the note collection
+        const noteRegion = t.create("noteRegion", {
+          track: noteTrack.location,
+          noteCollection: noteCollection.location,
+          region: {
+            positionTicks: 0,
+            durationTicks: QUARTER_NOTE * 256, // 4 qtr 1/4 notes
+            loopDurationTicks: QUARTER_NOTE * 256,
+            loopOffsetTicks: 0,
+          },
+        });
+
+        const notesList = notes.map(note => {
+          return t.create("note", {
+            noteCollection: noteCollection.location,
+            pitch: note.pitch, // C4
+            positionTicks: note.positionTicks,
+            durationTicks: note.durationTicks,
+            velocity: note.velocity,
+            slide: false
+          });
+        });
+        return { noteTrack, noteCollection, noteRegion, notesList };
+      });
+
+      log(`Created note track ${trackResult.noteTrack.id} for Heisenberg synth`);
+      log(`Created note collection ${trackResult.noteCollection.id} and region ${trackResult.noteRegion.id}`);
+      log(`Added 4 notes: C4, E4, G4, C5 (C major arpeggio)`);
+    } catch (error) {
+      log('Error creating note track for Heisenberg: ' + (error as Error).message);
+    }
+  }
 });
 
 // Create note track
@@ -610,6 +848,11 @@ document.getElementById('adjust-pitch-btn')!.addEventListener('click', async () 
 // Clear all microtonal tunings
 document.getElementById('clear-tunings-btn')!.addEventListener('click', async () => {
   await handleClearTunings();
+});
+
+// Test GoldenPond music theory library
+document.getElementById('test-goldenpond-btn')!.addEventListener('click', async () => {
+  await handleTestGoldenPond();
 });
 
 // Initial log

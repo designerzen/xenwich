@@ -4391,7 +4391,7 @@ js_Lib.debug = function() {
 	debugger;
 };
 js_Lib.dynamicImport = function(module) {
-	return import(module);
+	return import(/* @vite-ignore */ module);
 };
 js_Lib.alert = function(v) {
 	alert(js_Boot.__string_rec(v,""));
