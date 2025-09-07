@@ -9,6 +9,19 @@
  */
 export default class MIDICommand{
 
+    get number(){
+        return this.#number
+    }
+    get velocity(){
+        return this.#velocity
+    }
+    get startAt(){
+        return this.#startAt
+    }
+    get endAt(){
+        return this.#endAt
+    }
+   
     #number
     #velocity
     #startAt
@@ -43,8 +56,15 @@ export default class MIDICommand{
     /**
      * Run many times until it is complete
      */
-    update( timestamp ){
+    update( timestamp, division ){
         // see if it is time to trigger this command!
         return false
+    }
+
+    clone( timestampOffset=0 ){
+        const command = new MIDICommand()
+        this.noteOn( this.number, this.velocity, timestampOffset  )
+        this.noteOff( this.#number, timestampOffset )
+        return command
     }
 }

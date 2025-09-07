@@ -162,7 +162,7 @@ const setBlendMode = (blendMode)=> {
 
 onmessage = (evt) => {
 
-    console.error("NOTEVIZ worker message", evt)
+    // console.error("NOTEVIZ worker message", evt)
 
     if (evt.data.canvas)
     {

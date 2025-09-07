@@ -1,11 +1,10 @@
 import './assets/style/index.scss'
-import "./libs/audiotool/audio-tool-io.ts"
 
 import UI from './components/ui.js'
 
 import AudioTimer from './libs/audiobus/timing/timer.audio.js'
 import { WebMidi } from 'webmidi'
-import MIDIDevice from './libs/audiobus/midi/midi-device.js'
+import MIDIDevice from './libs/audiobus/midi/midi-device.ts'
 
 import NoteModel from './libs/audiobus/note-model.js'
 import { loadSavedValues } from './libs/audiotool/audio-tool-io.ts'
@@ -13,8 +12,9 @@ import { loadSavedValues } from './libs/audiotool/audio-tool-io.ts'
 const ALL_MIDI_CHANNELS = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]
 
 // All connected MIDI Devices
-let MIDIDevices = []
+const MIDIDevices = []
 let timer = null
+let timeLastBarBegan = 0
 
 // this is just a buffer for the onscreen keyboard
 let onscreenKeyboardMIDIDevice:MIDIDevice = null
@@ -51,8 +51,6 @@ const onMIDIEvent = ( event, activeMIDIDevice, connectedMIDIDevice, index ) => {
     {
         case "noteon":  
             const alreadyPlaying = activeMIDIDevice.noteOn( note )
-            
-            // midiCommandRequests.push(command)
             // ui.addCommand( command )
             if (!alreadyPlaying)
             {
@@ -69,7 +67,6 @@ const onMIDIEvent = ( event, activeMIDIDevice, connectedMIDIDevice, index ) => {
             console.info("MIDI NOTE OFF Event!", {event, activeMIDIDevice, connectedMIDIDevice, index} )
             // find the 
             // ui.removeCommand( command )
-            
             activeMIDIDevice.noteOff( note )
             break
         
@@ -81,7 +78,7 @@ const onMIDIEvent = ( event, activeMIDIDevice, connectedMIDIDevice, index ) => {
  * Connect to ALL MIDI Devices currently connected
  */
 const connectToMIDIDevice = ( connectedMIDIDevice, index:number ) => {
-    const device = new MIDIDevice( connectedMIDIDevice )
+    const device = new MIDIDevice( `${connectedMIDIDevice.manufacturer} ${connectedMIDIDevice.name}` )
     connectedMIDIDevice.addListener("noteon", event => onMIDIEvent( event, device, connectedMIDIDevice, index ), {channels:ALL_MIDI_CHANNELS })
     connectedMIDIDevice.addListener("noteoff", event => onMIDIEvent( event, device, connectedMIDIDevice, index ), {channels:ALL_MIDI_CHANNELS })
 
@@ -113,19 +110,46 @@ const onMIDIDevicesAvailable = event => {
         onUltimateFailure(  "No MIDI devices detected." )
     } else {
         // save a link to all connected MIDI devices
-        MIDIDevices = WebMidi.inputs.map((device, index) => {
+        WebMidi.inputs.forEach((device, index) => {
             // Monitor inputs from the MIDI devices attached
-            return connectToMIDIDevice( device, index )
+            const availableMIDIDevice = connectToMIDIDevice( device, index )
+            MIDIDevices.push( availableMIDIDevice )
         })
     }
 }
 
 /**
- * EVENT: 
+ * EVENT: Buffer is full of data... restarting LOOP!
  */
 const onRecordingMusicalEventsLoopBegin = ( activeAudioEvents ) => {
 
-    console.info("Active events", activeAudioEvents)
+    if (activeAudioEvents.length > 0)
+    {
+        const musicalEvents = activeAudioEvents.map( audioEvents => {
+            return audioEvent.clone( timeLastBarBegan )
+        })
+         console.info("Active musicalEvents", musicalEvents)
+    }
+}
+
+/**
+ * 
+ * @param e 
+ */
+const onNoteOnRequestedFromOnscreenKeyboard = (e) => {
+    console.info("Key pressed - send out MIDI", e )
+    ui.noteOn( e )
+    onscreenKeyboardMIDIDevice.noteOn( e, timer.now )
+}
+
+/**
+ * 
+ * @param e 
+ */
+const onNoteOffRequestedFromOnscreenKeyboard = (e) => {
+    console.info("Key off - send out MIDI", e )
+    ui.noteOff( e )
+    onscreenKeyboardMIDIDevice.noteOff( e, timer.now )
 }
 
 /**
@@ -159,6 +183,7 @@ const onTick = values => {
         if (currentRecordingMeasure > BARS_TO_RECORD)
         {
             currentRecordingMeasure = 0
+            timeLastBarBegan = timer.now
             onRecordingMusicalEventsLoopBegin(buffer)
             buffer = []
             // console.info("TICK:BUFFER RESET", values )
@@ -169,30 +194,40 @@ const onTick = values => {
         //  console.info("TICK:", {bar, divisionsElapsed})
     }
 
+    let hasUpdates = false
     // check to see if any events have happened since
     // the last bar
-    MIDIDevices.forEach( midiDevice => {
-        const updates = midiDevice.update( timer.now )
-        console.info("TICK:MIDIDevices", {midiDevice, updates} )
+    const updates = MIDIDevices.map( (midiDevice, index) => {
+        const deviceCommandsReadyToTrigger = midiDevice.update( timer.now, divisionsElapsed )
+        
+        if (deviceCommandsReadyToTrigger.length > 0)
+        {
+            hasUpdates = true
+            // create copies of the triggers and ensure they start at same position in time
+            buffer.push(...deviceCommandsReadyToTrigger)
+            console.info(index, "TICK:MusicalEvents", midiDevice.name, {deviceCommandsReadyToTrigger} )
+        }
+        
+        return deviceCommandsReadyToTrigger
     })
+
+    // console.info("TICK:MIDIDevices", MIDIDevices )
+
+    // Do we have any events that we need to trigger in this period?
+    if (hasUpdates)
+    {
+        console.info("TICK:hasUpdates", {buffer, updates} )
+        // UPDATE UI with all midi events
+        // that are going to be triggered at this stage
+    }else{
+        // console.info("TICK:NO UPDATES", updates )
+    }
 
     // save all new musical events in the buffer
     // buffer.push()
 
     // now action the updates
     // console.info("TICK", values )
-}
-
-const onNoteOnRequested = (e) => {
-    console.info("Key pressed - send out MIDI", e )
-    ui.noteOn( e )
-    onscreenKeyboardMIDIDevice.noteOn( e )
-}
-
-const onNoteOffRequested = (e) => {
-    console.info("Key off - send out MIDI", e )
-    ui.noteOff( e )
-    onscreenKeyboardMIDIDevice.noteOff( e )
 }
 
 
@@ -205,7 +240,7 @@ const onAudioContextAvailable = async (event) => {
     const audioContext = new AudioContext()
     timer = new AudioTimer( audioContext )
 
-    ui = new UI( ALL_KEYBOARD_NOTES, onNoteOnRequested, onNoteOffRequested )
+    ui = new UI( ALL_KEYBOARD_NOTES, onNoteOnRequestedFromOnscreenKeyboard, onNoteOffRequestedFromOnscreenKeyboard )
     ui.setTempo( timer.BPM )
     ui.whenTempoChangesRun( tempo => {
         console.info( "whenTempoChangesRun", tempo )
@@ -220,7 +255,7 @@ const onAudioContextAvailable = async (event) => {
 
     timer.startTimer( onTick )
 
-    onscreenKeyboardMIDIDevice = new MIDIDevice()
+    onscreenKeyboardMIDIDevice = new MIDIDevice("SVG Keyboared")
     MIDIDevices.push( onscreenKeyboardMIDIDevice )
 
     // This loads the AudioTool stuff
