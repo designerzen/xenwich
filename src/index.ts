@@ -8,6 +8,7 @@ import { WebMidi } from 'webmidi'
 import MIDIDevice from './libs/audiobus/midi/midi-device.js'
 
 import NoteModel from './libs/audiobus/note-model.js'
+import { loadSavedValues } from './libs/audiotool/audio-tool-io.ts'
 
 const ALL_MIDI_CHANNELS = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]
 
@@ -179,7 +180,9 @@ const onAudioContextAvailable = async (event) => {
         .catch(err => onUltimateFailure(err))
 
     timer.startTimer( onTick )
-    
+
+    // This loads the AudioTool stuff
+    loadSavedValues()
 }
 
 document.addEventListener("mousedown", onAudioContextAvailable, {once:true} )
