@@ -3,3 +3,4 @@ node_modules
 __*
 pnpm-lock.yml
 dist/
+pnpm-lock.yaml

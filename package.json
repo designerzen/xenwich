@@ -3,10 +3,10 @@
   "private": true,
   "version": "0.0.1",
   "type": "module",
-  "start":"./src/index.ts",
+  "start": "./src/index.ts",
   "scripts": {
     "dev": "vite",
-    "start":"npm run dev",
+    "start": "npm run dev",
     "build": "vite build",
     "preview": "vite preview"
   },
@@ -16,6 +16,7 @@
     "webmidi": "^3.1.12"
   },
   "dependencies": {
-    "@audiotool/nexus": "file:audiotool-nexus-0.0.2.tgz"
+    "@audiotool/nexus": "file:audiotool-nexus-0.0.2.tgz",
+    "sass-embedded": "^1.92.1"
   }
 }
