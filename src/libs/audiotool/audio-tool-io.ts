@@ -36,14 +36,14 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
       </div>
       
       <div class="project-section" style="display: none;">
-        <h3>Project Connection</h3>
-        <button id="list-projects-btn">List My Projects</button>
+        <h3>Project Connection</h3>        
         <div id="projects-list" style="display: none;">
           <h4>Select a Project:</h4>
           <select id="project-select" style="width: 100%; margin: 0.5em 0;">
             <option value="">Choose a project...</option>
           </select>
           <button id="open-selected-project-btn">Open Selected Project</button>
+          <button id="list-projects-btn">List My Projects</button>
         </div>
         <div style="margin-top: 1em;">
           <input type="text" id="project-url" placeholder="Or enter project URL manually" />
@@ -55,11 +55,9 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
       <div class="controls-section" style="display: none;">
         <h3>Audio Device Controls</h3>
         <button id="query-devices-btn">Query All Devices</button>
-        <button id="create-heisenberg-btn">Create Heisenberg Synth</button>
-        <button id="create-note-track-btn">Create Note Track</button>
+        <button id="create-synth-btn">Create GoldenPond Track</button>        
         <button id="list-notes-btn">List Notes in Project</button>
         <button id="create-note-btn">Create Note</button>
-        <button id="test-goldenpond-btn">Test GoldenPond Music Theory</button>
         <div style="margin-top: 1em;">
           <label for="pitch-offset" style="display: block; margin-bottom: 0.5em; font-size: 0.9em; color: #666;">
             Cents offset (100 cents = 1 semitone, 50 cents = quarter-tone):
@@ -72,7 +70,9 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
       
       <div class="output-section">
         <h3>Output</h3>
-        <pre id="output"></pre>
+        <div style="height: 400px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; background-color: #222; font-family: monospace; font-size: 12px; line-height: 1.4;">
+          <pre id="output" style="margin: 0; white-space: pre-wrap; word-wrap: break-word;"></pre>
+        </div>
       </div>
     </div>
   </div>
@@ -155,15 +155,6 @@ async function connectToNexusProject(projectUrl: string): Promise<void> {
       });
     }
 
-    // Set up event listeners
-    nexus.events.onCreate("tonematrix", (tm) => {
-      log(`New tonematrix created! Pattern index: ${tm.fields.patternIndex.value}`);
-    });
-
-    nexus.events.onCreate("stompboxDelay", (delay) => {
-      log(`New delay effect created! Feedback: ${delay.fields.feedbackFactor.value}`);
-    });
-
     nexus.events.onCreate("noteTrack", (track) => {
       log(`New note track created! Order: ${track.fields.orderAmongTracks.value}`);
     });
@@ -196,12 +187,16 @@ async function connectToNexusProject(projectUrl: string): Promise<void> {
 // Utility function to log output
 function log(message: string): void {
   const output = document.getElementById('output') as HTMLPreElement;
+  const container = output.parentElement as HTMLDivElement;
+
   output.textContent += new Date().toLocaleTimeString() + ': ' + message + '\n';
-  output.scrollTop = output.scrollHeight;
+
+  // Auto-scroll to bottom
+  container.scrollTop = container.scrollHeight;
 }
 
 // Initialize client and set up authentication
-async function initializeClient(patToken: string): Promise<void> {
+async function initializeClient(patToken: string, show: boolean): Promise<void> {
   try {
     log('Creating Audiotool client...');
     const result = await createAudiotoolClient({
@@ -210,7 +205,9 @@ async function initializeClient(patToken: string): Promise<void> {
     client = result;
     console.log(result);
     log('Client created successfully!');
-    (document.querySelector('.project-section') as HTMLDivElement).style.display = 'block';
+    if (show) {
+      (document.querySelector('.project-section') as HTMLDivElement).style.display = 'block';
+    }
   } catch (error) {
     log('Error creating client: ' + (error as Error).message);
   }
@@ -225,7 +222,7 @@ async function handleConnectWithPAT(patToken: string): Promise<void> {
 
   try {
     log('Initializing client with PAT token...');
-    await initializeClient(patToken);
+    await initializeClient(patToken, true);
 
     // Save token to localStorage
     localStorage.setItem(STORAGE_KEYS.PAT_TOKEN, patToken);
@@ -314,14 +311,6 @@ async function handleQueryDevices(): Promise<void> {
   }
 
   try {
-    // Find all delay effects
-    const delays = nexus.queryEntities.ofTypes("stompboxDelay").get();
-    log(`Found ${delays.length} delay effects`);
-
-    // Find all tonematrixes
-    const tonematrixes = nexus.queryEntities.ofTypes("tonematrix").get();
-    log(`Found ${tonematrixes.length} tonematrixes`);
-
     // Find all note tracks
     const noteTracks = nexus.queryEntities.ofTypes("noteTrack").get();
     log(`Found ${noteTracks.length} note tracks`);
@@ -332,39 +321,106 @@ async function handleQueryDevices(): Promise<void> {
   }
 }
 
-async function handleCreateHeisenberg(): Promise<{ heisenberg: any, placement: any, mixerChannel?: any, mixerPlacement?: any, audioConnection?: any } | void> {
+async function handleCreateSynth(): Promise<{ synth: any, placement: any, mixerChannel?: any, mixerPlacement?: any, audioConnection?: any } | void> {
   if (!nexus) {
     log('Please connect to a project first');
     return;
   }
 
   try {
-    log('Creating Heisenberg synth with mixer channel...');
+    log('Creating Pulverisateur synth with mixer channel...');
 
     const result = await nexus.modify((t) => {
-      // Create the Heisenberg synth
-      const heisenberg = t.create("heisenberg", {
-        gain: 0.7,
-        operators: [{ gain: 1, }, { gain: 1, }, { gain: 1, }, { gain: 1, }],
-        playModeIndex: 3, // Polyphonic mode
-        tuneFactor: 0,
-        glideMs: 0,
-        unisonoCount: 1,
-        unisonoDetuneCents: 10,
-        unisonoSpreadFactor: 0.5,
-        velocityFactor: 1,
-        operatorModeIndex: 1,
-        isActive: true
+      // Create the Pulverisateur synth
+      const synth = t.create("pulverisateur", {
+        isActive: true,
+        // Master settings
+        masterGain: 0.8,
+        playModeIndex: 2, // Polyphonic mode
+        tune: 0.0,
+        glideTimeMs: 50,
+        filterEnvelopeAmount: 0.6,
+
+        // Oscillator A - Sawtooth lead
+        oscillatorA: {
+          channel: { /* mix level properties */ },
+          oscillator: {
+            octave: 0,
+            tune: 0.02, // Slight detune for thickness
+            waveform: 0.8 // More sawtooth-like
+          }
+        },
+
+        // Oscillator B - Sub bass
+        oscillatorB: {
+          channel: { /* mix level properties */ },
+          oscillator: {
+            octave: -1, // One octave lower
+            tune: -0.01,
+            waveform: 0.1 // More square-like for bass
+          }
+        },
+
+        // Oscillator C - High harmonics
+        oscillatorC: {
+          channel: { /* mix level properties */ },
+          oscillator: {
+            octave: 1, // One octave higher
+            tune: 0.05, // Wider detune for movement
+            waveform: 0.6 // Mixed waveform
+          }
+        },
+
+        // Filter - Low-pass with movement
+        filter: {
+          cutoffHz: 1200,
+          resonance: 0.3,
+          modeIndex: 1, // LP/LP mode
+          keyboardTrackingAmount: 0.4,
+          spacing: 0.2
+        },
+
+        // Amplitude Envelope - Punchy
+        amplitudeEnvelope: {
+          attackMs: 5,
+          decayMs: 300,
+          sustain: 0.7,
+          releaseMs: 800,
+          decayIsLooped: false
+        },
+
+        // Filter Envelope - Creates movement
+        filterEnvelope: {
+          attackMs: 10,
+          decayMs: 600,
+          sustain: 0.4,
+          releaseMs: 1200,
+          decayIsLooped: false
+        },
+
+        // LFO - Adds vibrato and filter modulation
+        lfo: {
+          waveform: 0.5, // Sine-triangle mix
+          lfoRate: 0.2,
+          syncToClock: false,
+          trigger: false,
+          factor: 0.4, // Moderate depth
+          targetFilterCutoff: true,
+          targetOscillatorAPitch: true,
+          targetOscillatorBPitch: false, // Keep bass stable
+          targetOscillatorCPitch: true,
+          targetPulseWidth: false
+        }
       });
 
       // Create desktop placement for the synth
       const placement = t.create("desktopPlacement", {
-        entity: heisenberg.location,
+        entity: synth.location,
         x: 100 + Math.floor(Math.random() * 400), // Random position
         y: 100 + Math.floor(Math.random() * 300),
       });
 
-      // Create mixer channel for the Heisenberg
+      // Create mixer channel for the Synth
       const mixerChannel = t.create("mixerChannel", {});
       const out = t.entities.ofTypes("mixerOut").getOne();
 
@@ -374,71 +430,100 @@ async function handleCreateHeisenberg(): Promise<{ heisenberg: any, placement: a
           parentStrip: out.location
         });
       };
-      // Try to create audio connection from Heisenberg to mixer channel
+      // Try to create audio connection from Synth to mixer channel
       const audioConnection = t.create("audioConnection", {
-        fromSocket: heisenberg.fields.audioOutput.location,
+        fromSocket: synth.fields.audioOutput.location,
         toSocket: mixerChannel.fields.audioInput.location
       });
 
-
-      return { heisenberg, placement, mixerChannel, audioConnection };
+      return { synth, placement, mixerChannel, audioConnection };
     });
 
-    log(`Created Heisenberg synth with ID: ${result.heisenberg.id}`);
+    log(`Created Pulverisateur synth with ID: ${result.synth.id}`);
     log(`Placed at position (${result.placement.fields.x.value}, ${result.placement.fields.y.value})`);
     if (result.mixerChannel) {
       log(`Created mixer channel with ID: ${result.mixerChannel.id}`);
-      log(`Connected Heisenberg to mixer channel via audio connection: ${result.audioConnection.id}`);
+      log(`Connected Synth to mixer channel via audio connection: ${result.audioConnection.id}`);
     }
-    log('Heisenberg synth with mixer channel ready for use!');
+    log('Synth synth with mixer channel ready for use!');
 
     return result;
 
   } catch (error) {
-    log('Error creating Heisenberg synth: ' + (error as Error).message);
+    log('Error creating Synth synth: ' + (error as Error).message);
   }
 }
 
-async function handleCreateNoteTrack(): Promise<void> {
-  if (!nexus) {
-    log('Please connect to a project first');
-    return;
-  }
-
+// @ts-ignore: Function will be used later
+async function randomPatch(synth: any): Promise<void> {
   try {
-    // First, try to find an existing device to connect to
-    const devices = nexus.queryEntities.ofTypes("tonematrix").get();
-
-    if (devices.length === 0) {
-      log('No devices found. Create a tonematrix first!');
+    if (!nexus) {
+      log('Please connect to a project first');
       return;
     }
+    await nexus.modify((t) => {
+      const randomFloat = (min: number, max: number) => Math.random() * (max - min) + min;
+      const randomInt = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
 
-    const device = devices[0];
+      // Master settings
+      t.update(synth.fields.masterGain, randomFloat(0.5, 1.0));
+      t.update(synth.fields.playModeIndex, randomInt(1, 2)); // 1=Mono, 2=Polyphonic
+      t.update(synth.fields.tune, randomFloat(-1.0, 1.0));
+      t.update(synth.fields.glideTimeMs, randomFloat(0, 200));
+      t.update(synth.fields.filterEnvelopeAmount, randomFloat(0.0, 1.0));
 
-    const result = await nexus.modify((t) => {
-      // Create a note track
-      const noteTrack = t.create("noteTrack", {
-        orderAmongTracks: 0,
-        player: device.location,
-      });
+      // Oscillator A
+      t.update(synth.fields.oscillatorA.fields.oscillator.fields.octave, randomInt(-2, 2));
+      t.update(synth.fields.oscillatorA.fields.oscillator.fields.tune, randomFloat(-0.1, 0.1));
+      t.update(synth.fields.oscillatorA.fields.oscillator.fields.waveform, randomFloat(0.0, 1.0));
 
-      // Add a note region
-      const noteRegion = t.create("noteRegion", {
-        track: noteTrack.location,
-        region: {
-          positionTicks: 15360, // One 1/4 note in a 4/4 bar
-          durationTicks: 15360 * 4,
-        },
-      });
+      // Oscillator B
+      t.update(synth.fields.oscillatorB.fields.oscillator.fields.octave, randomInt(-2, 2));
+      t.update(synth.fields.oscillatorB.fields.oscillator.fields.tune, randomFloat(-0.1, 0.1));
+      t.update(synth.fields.oscillatorB.fields.oscillator.fields.waveform, randomFloat(0.0, 1.0));
 
-      return { noteTrack, noteRegion };
+      // Oscillator C
+      t.update(synth.fields.oscillatorC.fields.oscillator.fields.octave, randomInt(-2, 2));
+      t.update(synth.fields.oscillatorC.fields.oscillator.fields.tune, randomFloat(-0.1, 0.1));
+      t.update(synth.fields.oscillatorC.fields.oscillator.fields.waveform, randomFloat(0.0, 1.0));
+
+      // Filter
+      t.update(synth.fields.filter.fields.cutoffHz, randomFloat(200, 8000));
+      t.update(synth.fields.filter.fields.resonance, randomFloat(0.0, 0.8));
+      t.update(synth.fields.filter.fields.modeIndex, randomInt(1, 2)); // Various filter modes
+      t.update(synth.fields.filter.fields.keyboardTrackingAmount, randomFloat(0.0, 1.0));
+      t.update(synth.fields.filter.fields.spacing, randomFloat(0.0, 0.5));
+
+      // Amplitude Envelope
+      t.update(synth.fields.amplitudeEnvelope.fields.attackMs, randomFloat(1, 100));
+      t.update(synth.fields.amplitudeEnvelope.fields.decayMs, randomFloat(50, 1000));
+      t.update(synth.fields.amplitudeEnvelope.fields.sustain, randomFloat(0.1, 1.0));
+      t.update(synth.fields.amplitudeEnvelope.fields.releaseMs, randomFloat(100, 2000));
+
+      // Filter Envelope
+      t.update(synth.fields.filterEnvelope.fields.attackMs, randomFloat(1, 200));
+      t.update(synth.fields.filterEnvelope.fields.decayMs, randomFloat(100, 1500));
+      t.update(synth.fields.filterEnvelope.fields.sustain, randomFloat(0.0, 1.0));
+      t.update(synth.fields.filterEnvelope.fields.releaseMs, randomFloat(200, 3000));
+
+      // LFO
+      t.update(synth.fields.lfo.fields.waveform, randomFloat(0.0, 1.0));
+      t.update(synth.fields.lfo.fields.lfoRate, randomFloat(0.1, 1.0));
+      t.update(synth.fields.lfo.fields.syncToClock, Math.random() > 0.5);
+      t.update(synth.fields.lfo.fields.trigger, Math.random() > 0.7);
+      t.update(synth.fields.lfo.fields.factor, randomFloat(0.1, 0.8));
+
+      // LFO Targets (randomize which targets are active)
+      t.update(synth.fields.lfo.fields.targetFilterCutoff, Math.random() > 0.3);
+      t.update(synth.fields.lfo.fields.targetOscillatorAPitch, Math.random() > 0.5);
+      t.update(synth.fields.lfo.fields.targetOscillatorBPitch, Math.random() > 0.6);
+      t.update(synth.fields.lfo.fields.targetOscillatorCPitch, Math.random() > 0.4);
+      t.update(synth.fields.lfo.fields.targetPulseWidth, Math.random() > 0.7);
+
+      log('Synth parameters randomized successfully!');
     });
-
-    log(`Created note track with ID: ${result.noteTrack.id}`);
-    log(`Created note region with ID: ${result.noteRegion.id}`);
   } catch (error) {
-    log('Error creating note track: ' + (error as Error).message);
+    log('Error creating Synth synth: ' + (error as Error).message);
   }
 }
 
@@ -469,7 +554,7 @@ async function handleAutoConnect(): Promise<void> {
     if (!client) {
       try {
         log('Creating Audiotool client with stored PAT...');
-        await initializeClient(savedToken);
+        await initializeClient(savedToken, false);
 
         log('Client initialized successfully!');
       } catch (error) {
@@ -591,7 +676,7 @@ async function handleApplyMicrotuning(centsOffset: number): Promise<void> {
 
     const microTuning = await nexus.modify((t) => {
       return t.create("microTuningOctave", {
-        cents: centsArray
+        cents: centsArray as number[] & { length: 12 }
       });
     });
     // set tuning on a synth
@@ -673,7 +758,7 @@ async function handleTestGoldenPond(): Promise<any[]> {
       log('✓ Set mode to Major (0)');
 
       // Set chord sequence  
-      goldenData.chordSequence = "71,74,75,71,<1,7(5/2),72,75,71";  
+      goldenData.chordSequence = "71,74,75,71,<1,7(5/2),72,75,71";
       log('✓ Set chord sequence"');
 
       // Set BPM (beats per minute)
@@ -698,8 +783,8 @@ async function handleTestGoldenPond(): Promise<any[]> {
       // Generate notes
       const chords = goldenData.makeLineGenerator(0).generateNotes(0);
       log(`XXX Generated chords: ${chords}`);
-       
-      
+
+
       // Convert GoldenPond notes to Nexus format
       if (chords && chords.length > 0) {
         log('Converting GoldenPond notes to Nexus format...');
@@ -754,23 +839,24 @@ document.getElementById('query-devices-btn')!.addEventListener('click', async ()
   await handleQueryDevices();
 });
 
-// Create Heisenberg synth
-document.getElementById('create-heisenberg-btn')!.addEventListener('click', async () => {
-  const result = await handleCreateHeisenberg();
+// Create Synth synth
+document.getElementById('create-synth-btn')!.addEventListener('click', async () => {
+  const result = await handleCreateSynth();
   if (result) {
-    const { heisenberg, placement } = result;
-    log(`Event listener: Got Heisenberg synth ${heisenberg.id} at position (${placement.fields.x.value}, ${placement.fields.y.value})`);
+    // randomPatch(result.synth);
+    const { synth, placement } = result;
+    log(`Event listener: Got Synth synth ${synth.id} at position (${placement.fields.x.value}, ${placement.fields.y.value})`);
 
-    // Create a note track using this Heisenberg synth as the player
+    // Create a note track using this Synth synth as the player
     try {
       // Generate notes outside of the transaction first
       const notes = await handleTestGoldenPond();
 
       const trackResult = await nexus!.modify((t) => {
-        // Create a note track for the Heisenberg synth
+        // Create a note track for the Synth synth
         const noteTrack = t.create("noteTrack", {
           orderAmongTracks: 0,
-          player: heisenberg.location,
+          player: synth.location,
         });
 
         // Create a note collection for the track
@@ -801,18 +887,13 @@ document.getElementById('create-heisenberg-btn')!.addEventListener('click', asyn
         return { noteTrack, noteCollection, noteRegion, notesList };
       });
 
-      log(`Created note track ${trackResult.noteTrack.id} for Heisenberg synth`);
+      log(`Created note track ${trackResult.noteTrack.id} for Synth synth`);
       log(`Created note collection ${trackResult.noteCollection.id} and region ${trackResult.noteRegion.id}`);
-      log(`Added 4 notes: C4, E4, G4, C5 (C major arpeggio)`);
+      log(`Added notes from GoldenPond generation`);
     } catch (error) {
-      log('Error creating note track for Heisenberg: ' + (error as Error).message);
+      log('Error creating note track for Synth: ' + (error as Error).message);
     }
   }
-});
-
-// Create note track
-document.getElementById('create-note-track-btn')!.addEventListener('click', async () => {
-  await handleCreateNoteTrack();
 });
 
 // Clear stored token
@@ -849,11 +930,6 @@ document.getElementById('adjust-pitch-btn')!.addEventListener('click', async () 
 // Clear all microtonal tunings
 document.getElementById('clear-tunings-btn')!.addEventListener('click', async () => {
   await handleClearTunings();
-});
-
-// Test GoldenPond music theory library
-document.getElementById('test-goldenpond-btn')!.addEventListener('click', async () => {
-  await handleTestGoldenPond();
 });
 
 // Initial log
