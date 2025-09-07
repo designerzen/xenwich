@@ -1,6 +1,6 @@
 import { createAudiotoolClient } from "@audiotool/nexus"
 import type { AudiotoolClient, SyncedDocument } from "@audiotool/nexus"
-import { log } from '../log.js'
+import { log } from '../log.ts'
 import {STORAGE_KEYS} from '../audiotool/audio-tool-settings.js'
 
 // Global variables
@@ -310,7 +310,7 @@ export const handleClearToken = (): void => {
  * 
  * @returns 
  */
-export const handleAutoConnect = (): Promise<void> => {
+export const handleAutoConnect = async (): Promise<void> => {
   const savedToken = localStorage.getItem(STORAGE_KEYS.PAT_TOKEN);
   const savedProjectUrl = localStorage.getItem(STORAGE_KEYS.PROJECT_URL);
 

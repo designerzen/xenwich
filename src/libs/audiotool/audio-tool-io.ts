@@ -1,5 +1,6 @@
-import { log } from '../log.js'
+import { log } from '../log.ts'
 import { handleApplyMicrotuning, handleAutoConnect, handleClearToken, handleClearTunings, handleConnectWithPAT, handleCreateNote, handleCreateNoteTrack, handleListNotes, handleListProjects, handleOpenProject, handleOpenSelectedProject, handleQueryDevices } from './audio-tool-connect.js';
+import {STORAGE_KEYS} from '../audiotool/audio-tool-settings.js'
 
 // Initialize the app
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
