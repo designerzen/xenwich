@@ -118,6 +118,7 @@ const onMIDIDevicesAvailable = event => {
  * @param values 
  */
 const onTick = values => {
+
     const { 
         divisionsElapsed,
         bar, bars, 
@@ -164,7 +165,7 @@ const onNoteOffRequested = (e) => {
 const onAudioContextAvailable = async (event) => {
 
     const audioContext = new AudioContext()
-    const timer = new AudioTimer( audioContext )
+    timer = new AudioTimer( audioContext )
 
     ui = new UI( ALL_KEYBOARD_NOTES, onNoteOnRequested, onNoteOffRequested )
     ui.setTempo( timer.BPM )
@@ -183,6 +184,11 @@ const onAudioContextAvailable = async (event) => {
 
     // This loads the AudioTool stuff
     loadSavedValues()
+
+    // connect to audioTool and start a new project
+    // await handleConnectWithPAT( (document.getElementById('pat-input') as HTMLInputElement).value.trim() )
+
+    //  await handleAutoConnect()
 }
 
 document.addEventListener("mousedown", onAudioContextAvailable, {once:true} )
