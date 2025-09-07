@@ -16,9 +16,13 @@ const ALL_MIDI_CHANNELS = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]
 let MIDIDevices = []
 let timer = null
 
+// this is just a buffer for the onscreen keyboard
+let onscreenKeyboardMIDIDevice:MIDIDevice = null
+
 // Feed this for X amount of BARS
 let buffer = []
-const BARS_TO_RECORD = 4
+let currentRecordingMeasure = 0
+const BARS_TO_RECORD = 1
 
 // visuals
 let ui:UI = null
@@ -116,6 +120,13 @@ const onMIDIDevicesAvailable = event => {
     }
 }
 
+/**
+ * EVENT: 
+ */
+const onRecordingMusicalEventsLoopBegin = ( activeAudioEvents ) => {
+
+    console.info("Active events", activeAudioEvents)
+}
 
 /**
  * EVENT:
@@ -139,15 +150,34 @@ const onTick = values => {
 
     ui.updateClock( values )
 
+    // If bar is at zero point we check to see if the buffer
+    // needs to be reset....
+    if ( divisionsElapsed===0 ){
+        // ui.noteOn( )
+        currentRecordingMeasure++
+
+        if (currentRecordingMeasure > BARS_TO_RECORD)
+        {
+            currentRecordingMeasure = 0
+            onRecordingMusicalEventsLoopBegin(buffer)
+            buffer = []
+            // console.info("TICK:BUFFER RESET", values )
+        }else{
+            // console.info("TICK:IGNORE")
+        }
+    }else{
+        //  console.info("TICK:", {bar, divisionsElapsed})
+    }
+
+    // check to see if any events have happened since
+    // the last bar
     MIDIDevices.forEach( midiDevice => {
         const updates = midiDevice.update( timer.now )
         console.info("TICK:MIDIDevices", {midiDevice, updates} )
     })
 
-    // testing
-    if (bar === 0){
-        // ui.noteOn( )
-    }
+    // save all new musical events in the buffer
+    // buffer.push()
 
     // now action the updates
     // console.info("TICK", values )
@@ -156,12 +186,15 @@ const onTick = values => {
 const onNoteOnRequested = (e) => {
     console.info("Key pressed - send out MIDI", e )
     ui.noteOn( e )
+    onscreenKeyboardMIDIDevice.noteOn( e )
 }
 
 const onNoteOffRequested = (e) => {
     console.info("Key off - send out MIDI", e )
     ui.noteOff( e )
+    onscreenKeyboardMIDIDevice.noteOff( e )
 }
+
 
 /**
  * AudioContext is now available
@@ -186,6 +219,9 @@ const onAudioContextAvailable = async (event) => {
         .catch(err => onUltimateFailure(err))
 
     timer.startTimer( onTick )
+
+    onscreenKeyboardMIDIDevice = new MIDIDevice()
+    MIDIDevices.push( onscreenKeyboardMIDIDevice )
 
     // This loads the AudioTool stuff
     const isPreviousUser = loadSavedValues()
