@@ -4,3 +4,4 @@ __*
 pnpm-lock.yml
 dist/
 pnpm-lock.yaml
+*-lock*
