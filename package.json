@@ -12,11 +12,11 @@
   },
   "devDependencies": {
     "typescript": "~5.8.3",
-    "vite": "^7.1.2",
-    "webmidi": "^3.1.12"
+    "vite": "^7.1.2"
   },
   "dependencies": {
     "@audiotool/nexus": "file:audiotool-nexus-0.0.2.tgz",
-    "sass-embedded": "^1.92.1"
+    "sass-embedded": "^1.92.1",
+    "webmidi": "^3.1.12"
   }
 }
