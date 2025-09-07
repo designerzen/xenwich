@@ -1,0 +1,135 @@
+@use "./ease";
+
+.piano-key{
+	transition: 
+        opacity var(--time-quick, 90ms) linear,
+        fill var(--time-quick, 90ms) linear;
+
+    border-radius: 10%;
+
+    will-change: fill;
+
+	.piano-key-name{
+		visibility: hidden;
+	}
+
+	&:hover{
+		fill:hsla( 167, 50%, 90%, 0.5 );
+        opacity: 0.98;
+		.piano-key-name{
+			visibility: visible;
+		}		
+	}	
+    &.active{
+		fill:var( --col-accent, var(--shade-brand, red) );
+	}
+    &.active:hover{
+		fill:var( --col-accent, var(--shade-brand, red) );
+	}
+
+	&:focus{
+		outline: none;
+	}
+
+	&:focus-visible{
+		outline: none;
+		stroke-width:4px;
+		stroke:var(--col-accent);
+	} 
+}
+
+.piano-key-white{
+	background-color:white;
+	fill:white;
+}
+
+.piano-key-black{
+	fill:black;
+	background-color:black;
+	// background-image:linear-gradient(to bottom, #000, #222);
+	&:focus-visible{
+		stroke-width:4px;
+		stroke:var(--col-accent);
+	}
+}
+
+.piano-key-indicators{
+	pointer-events: none;
+}
+
+.piano-note-indicator{
+	transition: opacity var(--time-quick, 90ms) linear;
+	stroke:white;
+	stroke-width:0.3;
+	fill:yellow;
+	opacity: 0;
+}
+
+
+// peeking
+.piano{
+	// we always want the smallest size for the footer
+    --footer-height:clamp(33px, 10vmin, 10vh);
+    --footer-height:clamp(60px, 10vh, 200px);
+
+	--overhang:calc(-50% + 50vw);
+ 	--c:calc(100% - var(--footer-height) );
+	// margin-top:calc( -1 * var(--c) );
+
+	min-height:calc( 100px +  var(--footer-height));
+	//width: min(100%, 100vw);
+	
+    max-width: min( 100%, 100vw );
+    max-width: min( 100%, 100dvw );
+
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+
+   	position: sticky;
+    bottom:0; // calc( -1 * var(--footer-height,0 ));
+	
+	transition: bottom var(--time-medium, 90ms) ease.$easeOutBack; 
+	pointer-events: none;
+	z-index: 909;
+
+    // background-color: black;
+	// transform: translateX(-50%);
+
+	.piano-keys{
+		// we want the piano to be in the middle of the screen
+		// so we move it 50% of it's own width to the left then 50% of the screen to the right
+
+		pointer-events: all;
+		
+		// peeking
+		// transform: translateY( calc( var(--c) ) ) translateX( var(--overhang) );
+		// full soze
+		transform: translateY( 0 ) translateX( var(--overhang) );
+	
+		
+		transition: transform var(--time-medium, 90ms) ease.$easeOutBack; 
+         position: absolute;
+         bottom: 0;
+
+		margin:auto;
+		margin-bottom: 0;
+		
+		// padding-right: 100%;
+		// left:50%;
+
+		// make sure that it cannot be taller than 1/4 of the viewport height
+		max-height:min(148px, 33vh);
+
+		// ensure that it never shrinks to unusable size
+		min-width:max( 100%, calc( 128 * 11px) );
+	}
+}
+
+// Full size
+.piano.show-full-keyboard{
+	.piano-keys{
+		transform: translateY( 0 ) translateX( var(--overhang) );
+	}
+}
+
