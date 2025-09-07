@@ -1,11 +1,21 @@
 import { createAudiotoolClient } from "@audiotool/nexus"
 import type { AudiotoolClient, SyncedDocument } from "@audiotool/nexus"
 import { log } from '../log.ts'
-import {STORAGE_KEYS} from '../audiotool/audio-tool-settings.js'
+// @ts-ignore
+import { STORAGE_KEYS } from '../audiotool/audio-tool-settings.js'
+// @ts-ignore
+import { edoScaleMicroTuningOctave } from "../pitfalls/edo.mjs"
+// @ts-ignore
+import { microTuningOctave } from "../pitfalls/audioToolInt.mjs"
 
 // Global variables
 let client: AudiotoolClient | null = null
 let nexus: SyncedDocument | null = null
+let baseNoteMidi = 60;
+let rootOctave = 3;
+let microtonalTuning = null;
+let pitches = edoScaleMicroTuningOctave(baseNoteMidi, rootOctave, "LLsLLL", 3, 1);
+console.log(pitches.octaveTuning);
 
 /**
  * Initialize client and set up authentication
@@ -93,7 +103,8 @@ export const connectToNexusProject = async (projectUrl: string): Promise<void> =
 
     // Start syncing
     await nexus.start();
-
+    microtonalTuning = await microTuningOctave(nexus, pitches);
+    console.log(microtonalTuning);
     noteTracks = nexus.queryEntities.ofTypes("noteTrack").get();
     log(`Found ${noteTracks.length} note tracks`);
 
@@ -117,7 +128,7 @@ export const connectToNexusProject = async (projectUrl: string): Promise<void> =
 }
 
 // Business logic functions
-export const handleConnectWithPAT = async(patToken: string): Promise<void> => {
+export const handleConnectWithPAT = async (patToken: string): Promise<void> => {
   if (!patToken) {
     log('Please enter a PAT token')
     return;
@@ -197,7 +208,7 @@ export const handleOpenSelectedProject = async (selectedProject: string): Promis
  * @param projectUrl 
  * @returns 
  */
-export const  handleOpenProject = async (projectUrl: string): Promise<void> => {
+export const handleOpenProject = async (projectUrl: string): Promise<void> => {
   if (!projectUrl) {
     log('Please enter a project URL');
     return;
@@ -225,7 +236,7 @@ export const  handleOpenProject = async (projectUrl: string): Promise<void> => {
  * 
  * @returns 
  */
-export const handleQueryDevices =  async (): Promise<void> => {
+export const handleQueryDevices = async (): Promise<void> => {
   if (!nexus) {
     log('Please connect to a project first');
     return;
@@ -357,7 +368,7 @@ export const handleAutoConnect = async (): Promise<void> => {
  * 
  * @returns 
  */
-export const  handleListNotes = (): Promise<void> => {
+export const handleListNotes = (): Promise<void> => {
   if (!nexus) {
     log('Please connect to a project first');
     return;
@@ -429,81 +440,4 @@ export const handleCreateNote = async (): Promise<void> => {
   }
 }
 
-/**
- * 
- * @param centsOffset 
- * @returns 
- */
-export const handleApplyMicrotuning = async (centsOffset: number): Promise<void> => {
-  if (!nexus) {
-    log('Please connect to a project first');
-    return;
-  }
 
-  if (isNaN(centsOffset)) {
-    log('Please enter a valid cents offset (e.g. 25)');
-    return;
-  }
-
-  try {
-    log(`Creating microtonal tuning with alternating ${centsOffset} cents offset...`);
-
-    // Create an array of 12 cent values for each semitone (C, C#, D, D#, E, F, F#, G, G#, A, A#, B)
-    const centsArray: number[] = [];
-    for (let i = 0; i < 12; i++) {
-      // Alternate: even semitones get positive offset, odd semitones get negative offset
-      const adjustment = (i % 2 === 0) ? centsOffset : -centsOffset;
-      centsArray.push(adjustment);
-    }
-
-    log(`Tuning pattern: [${centsArray.join(', ')}] cents`);
-
-    const microTuning = await nexus.modify((t) => {
-      return t.create("microTuningOctave", {
-        cents: centsArray
-      });
-    });
-    // set tuning on a synth
-
-    log(`Created MicroTuningOctave with ID: ${microTuning.id}`);
-    log('Microtonal tuning applied! This affects all notes played by instruments that support microtuning.');
-    log('Note: The tuning affects the global project tuning, not individual notes.');
-
-  } catch (error) {
-    log('Error creating microtonal tuning: ' + (error as Error).message);
-  }
-}
-
-/**
- * 
- * @returns 
- */
-export const  handleClearTunings = async(): Promise<void> => {
-  if (!nexus) {
-    log('Please connect to a project first');
-    return;
-  }
-
-  try {
-    const tunings = nexus.queryEntities.ofTypes("microTuningOctave").get();
-
-    if (tunings.length === 0) {
-      log('No microtonal tunings found to clear');
-      return;
-    }
-
-    log(`Removing ${tunings.length} microtonal tunings...`);
-
-    await nexus.modify((t) => {
-      tunings.forEach(tuning => {
-        t.delete(tuning);
-        log(`Removed tuning ID: ${tuning.id}`);
-      });
-    });
-
-    log('All microtonal tunings cleared!');
-
-  } catch (error) {
-    log('Error clearing tunings: ' + (error as Error).message);
-  }
-}
