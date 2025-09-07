@@ -1,4 +1,4 @@
-import './assets/style/index.css'
+import './assets/style/index.scss'
 import "./libs/audiotool/audio-tool-io.ts"
 
 import UI from './components/ui.js'
@@ -17,8 +17,6 @@ let timer = null
 
 // visuals
 let ui:UI = null
-let noteVisualiser
-
 
 // For onscreen keyboard
 const keyboardKeys = ( new Array(128) ).fill("")
@@ -141,11 +139,21 @@ const onTick = values => {
 
     // testing
     if (bar === 0){
-        ui.noteOn( )
+        // ui.noteOn( )
     }
 
     // now action the updates
-    console.info("TICK", values )
+    // console.info("TICK", values )
+}
+
+const onNoteOnRequested = (e) => {
+    console.info("Key pressed - send out MIDI", e )
+    ui.noteOn( e )
+}
+
+const onNoteOffRequested = (e) => {
+    console.info("Key off - send out MIDI", e )
+    ui.noteOff( e )
 }
 
 /**
@@ -157,7 +165,7 @@ const onAudioContextAvailable = async (event) => {
     const audioContext = new AudioContext()
     const timer = new AudioTimer( audioContext )
 
-    ui = new UI( ALL_KEYBOARD_NOTES )
+    ui = new UI( ALL_KEYBOARD_NOTES, onNoteOnRequested, onNoteOffRequested )
     ui.setTempo( timer.BPM )
     ui.whenTempoChangesRun( tempo => {
         console.info( "whenTempoChangesRun", tempo )
