@@ -1,6 +1,7 @@
 import { log } from '../log.ts'
-import { handleApplyMicrotuning, handleAutoConnect, handleClearToken, handleClearTunings, handleConnectWithPAT, handleCreateNote, handleCreateNoteTrack, handleListNotes, handleListProjects, handleOpenProject, handleOpenSelectedProject, handleQueryDevices } from './audio-tool-connect.js';
-import {STORAGE_KEYS} from '../audiotool/audio-tool-settings.js'
+import { handleAutoConnect, handleClearToken, handleConnectWithPAT, handleCreateNote, handleCreateNoteTrack, handleListNotes, handleListProjects, handleOpenProject, handleOpenSelectedProject, handleQueryDevices } from './audio-tool-connect.js';
+// @ts-ignore
+import { STORAGE_KEYS } from '../audiotool/audio-tool-settings.js'
 
 // Initialize the app
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
@@ -38,14 +39,6 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
         <button id="create-note-track-btn">Create Note Track</button>
         <button id="list-notes-btn">List Notes in Project</button>
         <button id="create-note-btn">Create Note</button>
-        <div style="margin-top: 1em;">
-          <label for="pitch-offset" style="display: block; margin-bottom: 0.5em; font-size: 0.9em; color: #666;">
-            Cents offset (100 cents = 1 semitone, 50 cents = quarter-tone):
-          </label>
-          <input type="number" id="pitch-offset" placeholder="Cents offset (e.g. 25)" step="0.1" min="-100" max="100" value="25" />
-          <button id="adjust-pitch-btn">Apply Microtonal Tuning</button>
-          <button id="clear-tunings-btn">Clear All Tunings</button>
-        </div>
       </div>
       
       <div class="output-section">
@@ -79,8 +72,6 @@ export const handleClearProject = (): void => {
   (document.getElementById('project-url') as HTMLInputElement).value = '';
   log('Stored project URL cleared');
 }
-
-
 
 // Connect with PAT token
 document.getElementById('connect-btn')!.addEventListener('click', async () => {
@@ -138,15 +129,4 @@ document.getElementById('list-notes-btn')!.addEventListener('click', async () =>
 // Create a new note
 document.getElementById('create-note-btn')!.addEventListener('click', async () => {
   await handleCreateNote();
-});
-
-// Apply microtonal tuning using MicroTuningOctave
-document.getElementById('adjust-pitch-btn')!.addEventListener('click', async () => {
-  const centsOffset = parseFloat((document.getElementById('pitch-offset') as HTMLInputElement).value);
-  await handleApplyMicrotuning(centsOffset);
-});
-
-// Clear all microtonal tunings
-document.getElementById('clear-tunings-btn')!.addEventListener('click', async () => {
-  await handleClearTunings();
 });
