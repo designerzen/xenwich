@@ -16,6 +16,10 @@ const ALL_MIDI_CHANNELS = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]
 let MIDIDevices = []
 let timer = null
 
+// Feed this for X amount of BARS
+let buffer = []
+const BARS_TO_RECORD = 4
+
 // visuals
 let ui:UI = null
 
@@ -112,6 +116,7 @@ const onMIDIDevicesAvailable = event => {
     }
 }
 
+
 /**
  * EVENT:
  * Bar TICK - 24 divisions per quarter note
@@ -183,12 +188,16 @@ const onAudioContextAvailable = async (event) => {
     timer.startTimer( onTick )
 
     // This loads the AudioTool stuff
-    loadSavedValues()
+    const isPreviousUser = loadSavedValues()
+
+    if (isPreviousUser)
+    {
+        // WELCOME BACK!
+        // await handleAutoConnect()
+    }
 
     // connect to audioTool and start a new project
     // await handleConnectWithPAT( (document.getElementById('pat-input') as HTMLInputElement).value.trim() )
-
-    //  await handleAutoConnect()
 }
 
 document.addEventListener("mousedown", onAudioContextAvailable, {once:true} )

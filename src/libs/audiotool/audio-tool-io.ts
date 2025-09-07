@@ -57,7 +57,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 `
 
 // Load saved values from localStorage
-export const loadSavedValues = (): void => {
+export const loadSavedValues = (): Boolean => {
   const savedToken = localStorage.getItem(STORAGE_KEYS.PAT_TOKEN);
   const savedProjectUrl = localStorage.getItem(STORAGE_KEYS.PROJECT_URL);
 
@@ -70,6 +70,8 @@ export const loadSavedValues = (): void => {
     (document.getElementById('project-url') as HTMLInputElement).value = savedProjectUrl;
     log('Loaded saved project URL from localStorage');
   }
+
+  return !!(savedToken && savedProjectUrl)
 }
 
 export const handleClearProject = (): void => {
