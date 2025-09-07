@@ -7,7 +7,72 @@
     <title>Xen AudioTools</title>
   </head>
   <body>
+    
+
+    <main>
+
+      <header>
+
+      </header>
+
+      <details>
+        <summary>
+          MIDI Events
+        </summary>
+
+        <div>
+          <output id="midi-devices">
+
+          </output>
+          <output id="midi-input-commands">
+
+          </output>
+
+          <output id="midi-output-commands">
+
+          </output>
+
+          <time id="clock">
+            <strong>
+
+            </strong>
+          </time>
+
+        </div>
+
+      </details>
+
+      <form>
+
+        <label>
+          Tempo
+          <input id="tempo" type="range" min=10 max=303>
+        </label>
+
+        <p>
+          <output id="bpm"></output>
+          BPM
+        </p>
+
+        <label>
+          Scale
+          <select id="scale-selector">
+            <option>Solfeggio</option>
+          </select>
+        </label>
+      </form>
+      
+      <footer>
+
+      </footer>
+        
+      <canvas id="wallpaper" width="320" height="240"></canvas>
+    </main>
+
+    
+
     <div id="app"></div>
+    
     <script type="module" src="/src/index.ts"></script>
   </body>
 </html>
