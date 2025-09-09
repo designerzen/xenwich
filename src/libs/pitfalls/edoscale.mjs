@@ -28,14 +28,16 @@ export class EdoScale {
   hasMedium() {
     return this.step.some((_, i) => this.step[this.offset(i)] === M);
   }
+  sequence() {
+    return this.step.map((_, i) => this.stepSize(i)).join('');
+  }
 
+  
   stepSize(i) {
     return LABELS[this.step[this.offset(i)]];
   }
 
-  sequence() {
-    return this.step.map((_, i) => this.stepSize(i)).join('');
-  }
+
 
   stepValue(i) {
     const step = this.step[this.offset(i)];
