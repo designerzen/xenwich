@@ -13,8 +13,8 @@ export default class MIDIRequestedCommand extends MIDICommand{
     // 
     #event
 
-    constructor( noteEvent ){
-        super()
+    constructor( noteEvent, velocity ){
+        super( velocity )
         this.#event = noteEvent
     }
 

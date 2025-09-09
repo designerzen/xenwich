@@ -27,8 +27,8 @@ export default class MIDICommand{
     #startAt
     #endAt
 
-    constructor(){
-      
+    constructor(velocity){
+        this.#velocity = velocity
     }
 
     /**
@@ -54,7 +54,8 @@ export default class MIDICommand{
     }
 
     /**
-     * Run many times until it is complete
+     * Run many times until it is satisfies the 
+     * request and returns a boolean if so
      */
     update( timestamp, division ){
         // see if it is time to trigger this command!
@@ -62,7 +63,7 @@ export default class MIDICommand{
     }
 
     clone( timestampOffset=0 ){
-        const command = new MIDICommand()
+        const command = new MIDICommand(this.velocity)
         this.noteOn( this.number, this.velocity, timestampOffset  )
         this.noteOff( this.#number, timestampOffset )
         return command

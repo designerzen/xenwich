@@ -11,12 +11,16 @@ import MIDIRequestedCommand from './midi-requested-command.ts'
 export default class MIDIDevice{
 
     requestedCommands = new Map()
-    name = "Unknown Device"
+    #name = "Unknown Device"
+
+    get name(){
+        return this.#name
+    }
 
     constructor( deviceName ){
         if (deviceName)
         {
-            this.name = deviceName
+            this.#name = deviceName
         }
         console.info("Quanitsable MIDI Device Created!", this )
     }
@@ -36,10 +40,10 @@ export default class MIDIDevice{
             command = this.requestedCommands.get(noteEvent.number)
             // this.requestedCommands.set( noteEvent.number, command )
         }else{
-            command = new MIDIRequestedCommand( noteEvent )
+            command = new MIDIRequestedCommand( noteEvent, velocity )
         }
         // overwrite the command
-        command.noteOn( noteEvent.number, noteEvent.velocity, timestamp)
+        command.noteOn( noteEvent.number, velocity, timestamp)
         this.requestedCommands.set( noteEvent.number, command )
         console.info(this.name + " MIDI Device Note ON", noteEvent.number, {noteEvent, command}, this.requestedCommands )
         return command
@@ -64,8 +68,7 @@ export default class MIDIDevice{
         }else{
             console.info( this.name + "MIDI Device requested note off but note not playing", noteEvent)
         }
-        // this.requestedCommands.delete( noteEvent.number )
-       
+        // this.requestedCommands.delete( noteEvent.number )  
     }
 
     /**
