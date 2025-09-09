@@ -85,11 +85,11 @@ export default class UI{
     }
 
     addCommand(command){
-        this.inputs.innerHTML += `MIDI Command START #${command} <br>`
+        this.inputs.innerHTML = `MIDI Command START #${command} <br>` + this.inputs.innerHTML
     }
 
     removeCommand(command){
-        this.inputs.innerHTML += `MIDI Command STOP #${command} <br>`
+        this.inputs.innerHTML = `MIDI Command STOP #${command} <br>`+ this.inputs.innerHTML
     }
 
     updateClock( values ){
@@ -107,11 +107,14 @@ export default class UI{
     noteOn(note) {
         this.noteVisualiser.noteOn( note )
         this.keyboard.setKeyAsActive( note )
+        this.addCommand("noteOn" + note.number )
+
     }
 
     noteOff(note) {
         this.noteVisualiser.noteOff( note )
         this.keyboard.setKeyAsInactive( note )
+        this.removeCommand("noteOn" + note.number )
     }
 
     /**

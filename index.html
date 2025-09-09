@@ -1,78 +1,80 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Xen AudioTools</title>
-  </head>
-  <body>
-    
 
-    <main>
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Xen AudioTools</title>
+</head>
 
-      <header>
+<body>
 
-      </header>
 
-      <details>
-        <summary>
+  <main>
+
+    <header>
+
+    </header>
+
+    <details>
+      <summary>
+
+        <strong>
           MIDI Events
-        </summary>
+        </strong>
+        <time id="clock">
 
-        <div>
-          <output id="midi-devices">
+        </time>
+      </summary>
 
-          </output>
-          <output id="midi-input-commands">
+      <div>
+        <output id="midi-devices">
 
-          </output>
+        </output>
+        <output id="midi-input-commands">
 
-          <output id="midi-output-commands">
+        </output>
 
-          </output>
+        <output id="midi-output-commands">
 
-          <time id="clock">
-            <strong>
+        </output>
 
-            </strong>
-          </time>
 
-        </div>
+      </div>
 
-      </details>
+    </details>
 
-      <form>
+    <form id="options">
 
-        <label>
-          Tempo
-          <input id="tempo" type="range" min=10 max=303>
-        </label>
+      <label>
+        Tempo
+        <input id="tempo" type="range" min=10 max=303>
+      </label>
 
-        <p>
-          <output id="bpm"></output>
-          BPM
-        </p>
+      <p>
+        <output id="bpm"></output>
+        BPM
+      </p>
 
-        <label>
-          Scale
-          <select id="scale-selector">
-            <option>Solfeggio</option>
-          </select>
-        </label>
-      </form>
-      
-      <footer>
+      <label>
+        Scale
+        <select id="scale-selector">
+          <option>Solfeggio</option>
+        </select>
+      </label>
+    </form>
 
-      </footer>
-        
-      <canvas id="wallpaper" width="320" height="240"></canvas>
-    </main>
+    <footer>
 
-    
+    </footer>
 
-    <div id="app"></div>
-    
-    <script type="module" src="/src/index.ts"></script>
-  </body>
+    <canvas id="wallpaper" width="320" height="240"></canvas>
+  </main>
+
+  <div id="app"></div>
+
+  <script type="module" src="/src/index.ts"></script>
+</body>
+
 </html>

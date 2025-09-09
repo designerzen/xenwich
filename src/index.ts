@@ -125,7 +125,7 @@ const onRecordingMusicalEventsLoopBegin = ( activeAudioEvents ) => {
 
     if (activeAudioEvents.length > 0)
     {
-        const musicalEvents = activeAudioEvents.map( audioEvents => {
+        const musicalEvents = activeAudioEvents.map( audioEvent => {
             return audioEvent.clone( timeLastBarBegan )
         })
          console.info("Active musicalEvents", musicalEvents)
