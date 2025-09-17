@@ -1,7 +1,7 @@
 /**
  * This is a Sequence containing all Audio Commands
  * and a series of super helpful methods to read them
- * and ultimately 
+ * and ultimately let you fetch data from parts of a track
  */
 export default class AudioTrack
 {

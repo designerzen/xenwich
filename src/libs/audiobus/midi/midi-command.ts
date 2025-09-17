@@ -1,3 +1,5 @@
+import AudioCommand from "../audio-command.js"
+
 /**
  * This is a way to create a musical event
  * that can be sent to other methods in order
@@ -7,28 +9,10 @@
  * This is one of the classic MIDI controls
  * from Note On to Note Off to PitchBend etc.
  */
-export default class MIDICommand{
+export default class MIDICommand extends AudioCommand{
 
-    get number(){
-        return this.#number
-    }
-    get velocity(){
-        return this.#velocity
-    }
-    get startAt(){
-        return this.#startAt
-    }
-    get endAt(){
-        return this.#endAt
-    }
-   
-    #number
-    #velocity
-    #startAt
-    #endAt
-
-    constructor(velocity){
-        this.#velocity = velocity
+    constructor(){
+        super()
     }
 
     /**
@@ -38,9 +22,10 @@ export default class MIDICommand{
      * @param {Number} timestamp 
      */
     noteOn( noteNumber, velocity, timestamp ){
-        this.#number = noteNumber
-        this.#velocity = velocity
-        this.#startAt = timestamp
+        super.number = noteNumber
+        super.velocity = velocity
+        super.startAt = timestamp
+        super.type = "noteOn"
     }
     
     /**
@@ -49,8 +34,9 @@ export default class MIDICommand{
      * @param {Number} timestamp 
      */
     noteOff( noteNumber, timestamp ){
-        this.#number = noteNumber
-        this.#endAt = timestamp
+        this.number = noteNumber
+        this.endAt = timestamp
+        super.type = "noteOff"
     }
 
     /**
@@ -62,10 +48,14 @@ export default class MIDICommand{
         return false
     }
 
-    clone( timestampOffset=0 ){
-        const command = new MIDICommand(this.velocity)
-        this.noteOn( this.number, this.velocity, timestampOffset  )
-        this.noteOff( this.#number, timestampOffset )
-        return command
-    }
+    /**
+	 * 
+	 * @returns copy of this
+	 */
+	clone( timestampOffset=0 ){
+		const copy = this.copyAllParametersToCommand( new MIDICommand(this.velocity) )
+        copy.noteOn( this.number, this.velocity, timestampOffset  )
+        copy.noteOff( this.number, timestampOffset )
+        return copy
+	}
 }
