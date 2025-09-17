@@ -23,7 +23,7 @@ export default class UI{
         this.elementTempo = document.getElementById(DOM_ID_RANGE_TEMPO)
         this.elementBPM = document.getElementById(DOM_ID_BPM)
         
-        const wallpaperCanvas = document.getElementById("wallpaper")
+        this.wallpaperCanvas = document.getElementById("wallpaper")
         this.noteVisualiser = new NoteVisualiser( keyboardNotes, wallpaperCanvas, false, 0 ) // ALL_KEYBOARD_NOTES
         // wallpaperCanvas.addEventListener( "dblclick", e => scale === SCALES[ (SCALES.indexOf(scale) + 1) % SCALES.length] )
 
@@ -124,5 +124,9 @@ export default class UI{
     showError( errorMessage )
     {
         this.inputs.innerHTML = errorMessage
+    }
+
+    onDoubliClick( callback){
+        this.wallpaperCanvas.addEventListener( "dblclick", e => callback && callback(e) )   
     }
 }

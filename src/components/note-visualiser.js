@@ -51,8 +51,8 @@ export default class NoteVisualiser extends AbstractResizeable{
      * @param {Note} note 
      * @param {number} velocity 
      */
-    noteOn( note, velocity=1 ){
-        const payload = { type:"noteOn", note:note.number,colour:note.colour, velocity }
+    noteOn( note, velocity=1, colour=undefined ){
+        const payload = { type:"noteOn", note:note.number,colour:colour ?? note.colour, velocity }
         // console.info("NOTEVIZ noteOn", {note, velocity, payload} )
         this.notesOn++
         this.worker.postMessage(payload)
@@ -63,8 +63,8 @@ export default class NoteVisualiser extends AbstractResizeable{
      * @param {Note} note 
      * @param {Number} velocity 
      */
-    noteOff( note, velocity=1 ){
+    noteOff( note, velocity=1, colour=undefined ){
         this.notesOn--
-        this.worker.postMessage({ type:"noteOff",  note:note.number, colour:note.colour, velocity })
+        this.worker.postMessage({ type:"noteOff",  note:note.number, colour:colour ?? note.colour, velocity })
     }
 }
