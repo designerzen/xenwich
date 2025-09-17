@@ -5,15 +5,17 @@ import UI from './components/ui.js'
 import AudioTimer from './libs/audiobus/timing/timer.audio.js'
 import { WebMidi } from 'webmidi'
 import MIDIDevice from './libs/audiobus/midi/midi-device.ts'
-
-import NoteModel from './libs/audiobus/note-model.js'
+import SynthOscillator from './libs/audiobus/instruments/synth-oscillator.js'
+import NoteModel from './libs/audiobus/note-model.ts'
 import { loadSavedValues } from './libs/audiotool/audio-tool-io.ts'
+import { parseEdoScaleMicroTuningOctave } from './libs/pitfalls/ts/index.ts'
+// import { AudioContext, BiquadFilterNode } from "standardized-audio-context"
 
 const ALL_MIDI_CHANNELS = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]
 
 // All connected MIDI Devices
 const MIDIDevices = []
-let timer = null
+let timer:AudioTimer = null
 let timeLastBarBegan = 0
 
 // this is just a buffer for the onscreen keyboard
@@ -26,13 +28,16 @@ const BARS_TO_RECORD = 1
 
 // visuals
 let ui:UI = null
+let synth:SynthOscillator = null
 
-// For onscreen keyboard
+// For onscreen interactive keyboard
 const keyboardKeys = ( new Array(128) ).fill("")
 // Full keyboard with all notes including those we do not want the user to play
 const ALL_KEYBOARD_NOTES = keyboardKeys.map((keyboardKeys,index)=> new NoteModel( index ))
 // Grab a good sounding part (not too bassy, not too trebly)
 const KEYBOARD_NOTES = ALL_KEYBOARD_NOTES.slice( 41, 94 )
+
+let mictrotonalPitches = parseEdoScaleMicroTuningOctave(60, 3, "LLsLLLs", 2, 1)
 
 
 /**
@@ -81,6 +86,8 @@ const connectToMIDIDevice = ( connectedMIDIDevice, index:number ) => {
     const device = new MIDIDevice( `${connectedMIDIDevice.manufacturer} ${connectedMIDIDevice.name}` )
     connectedMIDIDevice.addListener("noteon", event => onMIDIEvent( event, device, connectedMIDIDevice, index ), {channels:ALL_MIDI_CHANNELS })
     connectedMIDIDevice.addListener("noteoff", event => onMIDIEvent( event, device, connectedMIDIDevice, index ), {channels:ALL_MIDI_CHANNELS })
+    // todo: pITCHBEND AND AFTERTOUCH
+    // connectedMIDIDevice.addListener("noteoff", event => onMIDIEvent( event, device, connectedMIDIDevice, index ), {channels:ALL_MIDI_CHANNELS })
 
     ui.addDevice( connectedMIDIDevice, index )
 
@@ -137,9 +144,20 @@ const onRecordingMusicalEventsLoopBegin = ( activeAudioEvents ) => {
  * @param e 
  */
 const onNoteOnRequestedFromOnscreenKeyboard = (e) => {
-    console.info("Key pressed - send out MIDI", e )
+    //console.info("Key pressed - send out MIDI", e )
     ui.noteOn( e )
     onscreenKeyboardMIDIDevice.noteOn( e, timer.now )
+   
+    const freq = mictrotonalPitches.freqs[e.noteNumber]
+    const microntonal = e.clone()
+
+    if (synth)
+    {
+        synth.noteOn( microntonal, 1 )
+        // synth.detune = freq
+    }
+    
+    console.info("Microtonal Pitch", e.noteNumber, mictrotonalPitches.freqs[e.noteNumber])
 }
 
 /**
@@ -150,6 +168,7 @@ const onNoteOffRequestedFromOnscreenKeyboard = (e) => {
     console.info("Key off - send out MIDI", e )
     ui.noteOff( e )
     onscreenKeyboardMIDIDevice.noteOff( e, timer.now )
+    synth && synth.noteOff( e )
 }
 
 /**
@@ -184,7 +203,7 @@ const onTick = values => {
         {
             currentRecordingMeasure = 0
             timeLastBarBegan = timer.now
-            onRecordingMusicalEventsLoopBegin(buffer)
+            onRecordingMusicalEventsLoopBegin([...buffer])
             buffer = []
             // console.info("TICK:BUFFER RESET", values )
         }else{
@@ -216,7 +235,7 @@ const onTick = values => {
     // Do we have any events that we need to trigger in this period?
     if (hasUpdates)
     {
-        console.info("TICK:hasUpdates", {buffer, updates} )
+        console.info("TICK:hasUpdates", {buffer, updates, MIDIDevices} )
         // UPDATE UI with all midi events
         // that are going to be triggered at this stage
     }else{
@@ -237,14 +256,19 @@ const onTick = values => {
  */
 const onAudioContextAvailable = async (event) => {
 
-    const audioContext = new AudioContext()
+    const audioContext = new AudioContext() 
+    synth = new SynthOscillator( audioContext )
+    synth.output.connect( audioContext.destination )
+    synth.addTremelo(0.5)
+
     timer = new AudioTimer( audioContext )
 
     ui = new UI( ALL_KEYBOARD_NOTES, onNoteOnRequestedFromOnscreenKeyboard, onNoteOffRequestedFromOnscreenKeyboard )
     ui.setTempo( timer.BPM )
-    ui.whenTempoChangesRun( tempo => {
-        console.info( "whenTempoChangesRun", tempo )
-        timer.BPM = tempo
+    ui.whenTempoChangesRun( tempo => timer.BPM = tempo )
+ 
+    ui.onDoubleCllick( () => {
+        synth.setRandomTimbre()
     })
 
     // also now monitor for MIDI inputs...
@@ -256,10 +280,11 @@ const onAudioContextAvailable = async (event) => {
     timer.startTimer( onTick )
 
     onscreenKeyboardMIDIDevice = new MIDIDevice("SVG Keyboared")
+    
     MIDIDevices.push( onscreenKeyboardMIDIDevice )
 
     // This loads the AudioTool stuff
-    const isPreviousUser = loadSavedValues()
+    const isPreviousUser = false // loadSavedValues()
 
     if (isPreviousUser)
     {
@@ -272,3 +297,8 @@ const onAudioContextAvailable = async (event) => {
 }
 
 document.addEventListener("mousedown", onAudioContextAvailable, {once:true} )
+
+
+// load and complete some tests!
+// import { parseEdoScaleMicroTuningOctave } from "index.ts"
+console.warn( "TEST", mictrotonalPitches, 60, 3, "LLsLLLs", 2, 1 )
