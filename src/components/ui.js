@@ -24,7 +24,7 @@ export default class UI{
         this.elementBPM = document.getElementById(DOM_ID_BPM)
         
         this.wallpaperCanvas = document.getElementById("wallpaper")
-        this.noteVisualiser = new NoteVisualiser( keyboardNotes, wallpaperCanvas, false, 0 ) // ALL_KEYBOARD_NOTES
+        this.noteVisualiser = new NoteVisualiser( keyboardNotes, this.wallpaperCanvas, false, 0 ) // ALL_KEYBOARD_NOTES
         // wallpaperCanvas.addEventListener( "dblclick", e => scale === SCALES[ (SCALES.indexOf(scale) + 1) % SCALES.length] )
 
         this.keyboard = new SVGKeyboard( keyboardNotes, onNoteOn, onNoteOff )
@@ -57,6 +57,10 @@ export default class UI{
     setTempo(tempo){
         this.elementTempo.value = tempo
         this.elementBPM.textContent = tempo
+    }
+
+    setPlaying(isPlaying){
+        this.elementTempo.classList.toggle("playing", isPlaying)
     }
 
     whenTempoChangesRun(callback){
@@ -126,7 +130,7 @@ export default class UI{
         this.inputs.innerHTML = errorMessage
     }
 
-    onDoubliClick( callback){
+    onDoubleClick( callback){
         this.wallpaperCanvas.addEventListener( "dblclick", e => callback && callback(e) )   
     }
 }
