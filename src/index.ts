@@ -1,5 +1,7 @@
 import './assets/style/index.scss'
 
+import * as Commands from './commands.ts'
+
 import UI from './components/ui.js'
 
 import AudioTimer from './libs/audiobus/timing/timer.audio.js'
@@ -9,6 +11,7 @@ import SynthOscillator from './libs/audiobus/instruments/synth-oscillator.js'
 import NoteModel from './libs/audiobus/note-model.ts'
 import { loadSavedValues } from './libs/audiotool/audio-tool-io.ts'
 import { parseEdoScaleMicroTuningOctave } from './libs/pitfalls/ts/index.ts'
+import { addKeyboardDownEvents } from './libs/keyboard.ts'
 // import { AudioContext, BiquadFilterNode } from "standardized-audio-context"
 
 const ALL_MIDI_CHANNELS = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]
@@ -143,7 +146,7 @@ const onRecordingMusicalEventsLoopBegin = ( activeAudioEvents ) => {
  * 
  * @param e 
  */
-const onNoteOnRequestedFromOnscreenKeyboard = (e) => {
+const onNoteOnRequestedFromKeyboard = (e) => {
     //console.info("Key pressed - send out MIDI", e )
     ui.noteOn( e )
     onscreenKeyboardMIDIDevice.noteOn( e, timer.now )
@@ -164,7 +167,7 @@ const onNoteOnRequestedFromOnscreenKeyboard = (e) => {
  * 
  * @param e 
  */
-const onNoteOffRequestedFromOnscreenKeyboard = (e) => {
+const onNoteOffRequestedFromKeyboard = (e) => {
     console.info("Key off - send out MIDI", e )
     ui.noteOff( e )
     onscreenKeyboardMIDIDevice.noteOff( e, timer.now )
@@ -259,15 +262,15 @@ const onAudioContextAvailable = async (event) => {
     const audioContext = new AudioContext() 
     synth = new SynthOscillator( audioContext )
     synth.output.connect( audioContext.destination )
-    synth.addTremelo(0.5)
+    // synth.addTremolo(0.5)
 
     timer = new AudioTimer( audioContext )
 
-    ui = new UI( ALL_KEYBOARD_NOTES, onNoteOnRequestedFromOnscreenKeyboard, onNoteOffRequestedFromOnscreenKeyboard )
+    ui = new UI( ALL_KEYBOARD_NOTES, onNoteOnRequestedFromKeyboard, onNoteOffRequestedFromKeyboard )
     ui.setTempo( timer.BPM )
     ui.whenTempoChangesRun( tempo => timer.BPM = tempo )
  
-    ui.onDoubleCllick( () => {
+    ui.onDoubleClick( () => {
         synth.setRandomTimbre()
     })
 
@@ -283,6 +286,30 @@ const onAudioContextAvailable = async (event) => {
     
     MIDIDevices.push( onscreenKeyboardMIDIDevice )
 
+    // now watch for keydowns and tie into MIDI
+    addKeyboardDownEvents( (command:string, key:string, value:Number ) => {
+        switch(command)
+        {
+            case Commands.PLAYBACK_TOGGLE:
+                timer.togglePlay()
+                ui.setPlaying( timer.isRunning )
+                break
+            
+            case Commands.TEMPO_TAP:
+                timer.tapTempo()
+                ui.setPlaying( timer.isRunning )
+                break
+            
+            case Commands.NOTE_ON:
+                onNoteOnRequestedFromKeyboard( new NoteModel( value ) )
+                break
+
+            case Commands.NOTE_OFF:
+                onNoteOffRequestedFromKeyboard( new NoteModel( value ) )
+                break
+        }
+    })
+    
     // This loads the AudioTool stuff
     const isPreviousUser = false // loadSavedValues()
 
