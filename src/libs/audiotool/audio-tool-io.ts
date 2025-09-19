@@ -5,8 +5,9 @@ import { STORAGE_KEYS } from '../audiotool/audio-tool-settings.js'
 
 // Initialize the app
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
-  <div>
-    <h1>Audiotool Nexus API Demo</h1>
+  <details>
+    <summary>Connect to Audiotool</summary>
+  
     <div class="card">
       <div class="auth-section">
         <h3>Authentication</h3>
@@ -46,7 +47,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
         <pre id="output"></pre>
       </div>
     </div>
-  </div>
+  </details>
 `
 
 // Load saved values from localStorage
