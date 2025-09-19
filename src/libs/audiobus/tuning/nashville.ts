@@ -78,7 +78,7 @@ export const getScale = (rootNote: string, scaleType: string = 'major'): string[
  * @returns The chord name (e.g., 'C', 'Dm', 'Bdim') for the given degree in the key and scale type.
  * @throws Error if n is not between 1 and 7, or if the key or scaleType is invalid.
  */
-const nashvilleCache = new Map<string, string[]>()
+const nashvilleCache = new Map<string, string>()
 export const nashvilleToChord = (n: number, key: string, scaleType: string = SCALE_MAJOR ): string => {
     
     if (n < 1 || n > 7) {
@@ -103,9 +103,9 @@ export const nashvilleToChord = (n: number, key: string, scaleType: string = SCA
     if (quality === 'aug') return `${chord}aug`
     // Handle diminished chords
     const output = `${chord}${quality === 'maj' ? '' : quality === 'min' ? 'm' : quality === 'dim' ? 'dim' : ''}`
-}   nashvilleCache.set(id, output)
+    nashvilleCache.set(id, output)
     return output
-
+}
 // Example usage:
 // getScale('C', 'major') // [ 'C', 'D', 'E', 'F', 'G', 'A', 'B' ]
 // getScale('A', 'naturalMinor') // [ 'A', 'B', 'C', 'D', 'E', 'F', 'G' ]
