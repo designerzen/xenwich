@@ -5,3 +5,4 @@ pnpm-lock.yml
 dist/
 pnpm-lock.yaml
 *-lock*
+src/libs/audiotoolsdk

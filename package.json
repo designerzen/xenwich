@@ -15,7 +15,7 @@
     "fflate": "^0.8.2",
     "sass-embedded": "^1.92.1",
     "typescript": "~5.9.2",
-    "vite": "^7.1.5"
+    "vite": "^7.1.6"
   },
   "dependencies": {
     "@audiotool/nexus": "file:audiotool-nexus-0.0.2.tgz",
