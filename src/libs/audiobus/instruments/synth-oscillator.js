@@ -10,19 +10,19 @@ export default class SynthOscillator{
     options = {
 
         // default amplitude
-        gain:0.2,       // ratio 0-1
+        gain:0.2,           // ratio 0-1
 
-        attack:0.4,     // in s
-        decay:0.9,     // in s
-        sustain:0.85,    // ratio 0-1
-        release:0.3,    // in s
+        attack:0.4,         // in s
+        decay:0.9,          // in s
+        sustain:0.85,       // ratio 0-1
+        release:0.3,        // in s
         
         minDuration: .6,
 
         shape:OSCILLATORS[0],
 
         arpeggioDuration:0.2,
-        slideDuration: 0.006,
+        slideDuration: 0.00006,
         fadeDuration:0.2,
 
         filterGain :0.7,
@@ -169,6 +169,10 @@ export default class SynthOscillator{
         return this.dcFilterNode
     }
 
+    get tremoloActive(){
+        return !!this.tremoloGain
+    }
+
     constructor(audioContext, options={}){
         this.audioContext = audioContext
         this.options = Object.assign({}, this.options, options)
@@ -223,7 +227,6 @@ export default class SynthOscillator{
     createOscillator( frequency=440, startTime = this.audioContext.currentTime  ){
         
         this.oscillator = this.audioContext.createOscillator()
-
         // if (this.customWave)
         // {
         //     // this.oscillator.setPeriodicWave(this.customWave)
@@ -231,14 +234,27 @@ export default class SynthOscillator{
         // }else{
         //       // console.info("Setting oscilliator type", this.shape )
         // }
-
         this.shape = this.options.shape // OSCILLATORS[Math.floor(Math.random() * OSCILLATORS.length)]
         this.oscillator.frequency.value = frequency
         this.oscillator.connect(this.gainNode)
         this.oscillator.start(startTime)
+
+        if (this.tremoloActive)
+        {
+            this.tremoloOscillator.frequency.cancelScheduledValues(startTime)
+            this.tremoloOscillator.frequency.setValueAtTime(frequency, startTime)
+            
+            this.tremoloGain.connect(this.oscillator.frequency)
+            console.info("tremoloActive", this.shape )
+            
+        }
+
         this.active = true
     }
 
+    /**
+     * Set a random oscillator timbre from the collection
+     */
     setRandomTimbre(){
         this.shape = OSCILLATORS[Math.floor(Math.random() * OSCILLATORS.length)]
     }
@@ -268,17 +284,19 @@ export default class SynthOscillator{
         }
     }
 
-    addTremelo( depth=0.5 ){
+    /**
+     * Adds a constant tremolo effect
+     * @param {Number} depth 
+     */
+    addTremolo( depth=0.5 ){
         const now = this.now
+        this.tremoloGain = this.audioContext.createGain()
+        this.tremoloGain.gain.value = depth
+
         this.tremoloOscillator = this.audioContext.createOscillator()
         this.tremoloOscillator.type = 'sine'
-        this.tremoloOscillator.frequency.value = this.oscillator.frequency.value
-
-        const tremoloGain = this.audioContext.createGain()
-        tremoloGain.gain.value = depth  
-        this.tremoloOscillator.connect(tremoloGain)
-        tremoloGain.connect(this.oscillator.frequency)
-        this.tremoloOscillator.start(now)
+        this.tremoloOscillator.connect(this.tremoloGain)
+        this.tremoloOscillator.start(now) 
     }
 
     /**
@@ -320,7 +338,7 @@ export default class SynthOscillator{
                      this.createOscillator( frequency, startTime )	
                 }else{
                     // reuse existing, no glide
-                    this.glide( frequency, 3 )
+                    this.glide( frequency, 0.03 )
                 }
        
             }else{
@@ -334,6 +352,7 @@ export default class SynthOscillator{
         }else{
             // reuse existing and glide
             this.frequency = frequency
+            //  this.glide( frequency, 3 )
         }
 
         if (arp)
