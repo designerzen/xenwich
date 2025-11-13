@@ -9,6 +9,7 @@ const DOM_ID_CLOCK = "clock"
 const DOM_ID_SELECTOR_SCALE = "scale-selector"
 const DOM_ID_RANGE_TEMPO = "tempo"
 const DOM_ID_BPM = "bpm"
+const DOM_ID_BUTTON_CONNECT_BLUETOOTH = "btn-connect-to-ble"
 
 export default class UI{
 
@@ -23,12 +24,14 @@ export default class UI{
         this.elementTempo = document.getElementById(DOM_ID_RANGE_TEMPO)
         this.elementBPM = document.getElementById(DOM_ID_BPM)
         
+        this.elementButtonBluetoothConnect = document.getElementById(DOM_ID_BUTTON_CONNECT_BLUETOOTH)
+        
         this.wallpaperCanvas = document.getElementById("wallpaper")
         this.noteVisualiser = new NoteVisualiser( keyboardNotes, this.wallpaperCanvas, false, 0 ) // ALL_KEYBOARD_NOTES
         // wallpaperCanvas.addEventListener( "dblclick", e => scale === SCALES[ (SCALES.indexOf(scale) + 1) % SCALES.length] )
 
         this.keyboard = new SVGKeyboard( keyboardNotes, onNoteOn, onNoteOff )
-        this.keyboardElement = document.body.appendChild(  this.keyboard.asElement )
+        this.keyboardElement = document.body.appendChild( this.keyboard.asElement )
     }
 
 
@@ -111,14 +114,14 @@ export default class UI{
     noteOn(note) {
         this.noteVisualiser.noteOn( note )
         this.keyboard.setKeyAsActive( note )
-        this.addCommand("noteOn" + note.number )
+        this.addCommand("NoteOn #" + note.number )
 
     }
 
     noteOff(note) {
         this.noteVisualiser.noteOff( note )
         this.keyboard.setKeyAsInactive( note )
-        this.removeCommand("noteOn" + note.number )
+        this.removeCommand("NoteOff #" + note.number )
     }
 
     /**
