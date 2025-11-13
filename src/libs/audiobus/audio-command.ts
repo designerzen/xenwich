@@ -16,6 +16,11 @@ export default class AudioCommand {
 	get pitch(){
 		return this.value
 	}
+	
+	get duration(){
+		return this.endAt - this.startAt
+	}
+
    
 	// MIDI GM Note number for setting pitch
     number
