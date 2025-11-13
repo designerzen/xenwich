@@ -1,5 +1,5 @@
 // Nashville Number System
-import { SCALE_MAJOR, SCALE_IONIAN, SCALE_NATURAL_MINOR, SCALE_AEOLIAN, SCALE_DORIAN, SCALE_PHRYGIAN, SCALE_LYDIAN, SCALE_MIXOLYDIAN, SCALE_LOCRIAN, SCALE_HARMONIC_MINOR, SCALE_MELODIC_MINOR } from './scales.ts'
+import { SCALE_MAJOR, TUNING_MODE_IONIAN, SCALE_NATURAL_MINOR, SCALE_AEOLIAN, SCALE_DORIAN, SCALE_PHRYGIAN, SCALE_LYDIAN, SCALE_MIXOLYDIAN, SCALE_LOCRIAN, SCALE_HARMONIC_MINOR, SCALE_MELODIC_MINOR } from './scales.ts'
 
 // List of notes in order (for C major, but can be rotated for other keys)
 const NOTES = [
@@ -10,7 +10,7 @@ const NOTES = [
 // Interval patterns (in semitones) for common scales and modes
 const SCALE_PATTERNS: Record<string, number[]> = {
     [SCALE_MAJOR]: [0, 2, 4, 5, 7, 9, 11],
-    [SCALE_IONIAN]: [0, 2, 4, 5, 7, 9, 11],
+    [TUNING_MODE_IONIAN]: [0, 2, 4, 5, 7, 9, 11],
     [SCALE_NATURAL_MINOR]: [0, 2, 3, 5, 7, 8, 10],
     [SCALE_AEOLIAN]: [0, 2, 3, 5, 7, 8, 10],
     [SCALE_DORIAN]: [0, 2, 3, 5, 7, 9, 10],
@@ -25,7 +25,7 @@ const SCALE_PATTERNS: Record<string, number[]> = {
 // Chord qualities for each scale degree in each scale type
 const CHORD_QUALITIES: Record<string, string[]> = {
     [SCALE_MAJOR]: ['maj', 'min', 'min', 'maj', 'maj', 'min', 'dim'],
-    [SCALE_IONIAN]: ['maj', 'min', 'min', 'maj', 'maj', 'min', 'dim'],
+    [TUNING_MODE_IONIAN]: ['maj', 'min', 'min', 'maj', 'maj', 'min', 'dim'],
     [SCALE_NATURAL_MINOR]: ['min', 'dim', 'maj', 'min', 'min', 'maj', 'maj'],
     [SCALE_AEOLIAN]: ['min', 'dim', 'maj', 'min', 'min', 'maj', 'maj'],
     [SCALE_DORIAN]: ['min', 'min', 'maj', 'maj', 'min', 'dim', 'maj'],
