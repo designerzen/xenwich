@@ -40,6 +40,11 @@ export default class MIDIDevice{
     noteOn( noteEvent:NoteModel, timestamp:number, velocity:number=1 ){
        
         const isPlaying = this.activeNotes.get( noteEvent.noteNumber )
+        if (isPlaying)
+        {
+            return false
+        }
+        
         this.activeNotes.set( noteEvent.noteNumber, noteEvent )
 
         if (this.quantise)
@@ -48,8 +53,9 @@ export default class MIDIDevice{
             this.scheduleNoteOn( noteEvent, timestamp, velocity )
         }else{
             // immediately handle
+            
         }
-        return isPlaying
+        return true
     }
 
     /**

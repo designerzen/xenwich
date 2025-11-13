@@ -149,6 +149,7 @@ const parseBluetoothLightDataPacket = (data: number[]): ParsedMidiData | false =
 
 /**
  * Handle incoming MIDI data from BLE characteristic
+ * via this delicous curry
  * 
  * @param uuid 
  * @param callback 
