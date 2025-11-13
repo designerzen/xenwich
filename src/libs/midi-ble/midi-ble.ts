@@ -269,7 +269,7 @@ export const scanForBluetoothPeripherals = (callback: MidiCallback, allowDuplica
  * @param timestamp
  * @returns 
  */
-export const dispatchPacket = async ( characteristic:any, midiStatus:number, midiFirstCommand:number, midiSecondCommand:number = 0, timestamp:number|undefined=undefined ) => {
+const dispatchPacket = async ( characteristic:any, midiStatus:number, midiFirstCommand:number, midiSecondCommand:number = 0, timestamp:number|undefined=undefined ) => {
     const { header, messageTimestamp }:TimestampBytes = getTimestampBytes(timestamp)
     const packet:Uint8Array = new Uint8Array([header, messageTimestamp, midiStatus, midiFirstCommand, midiSecondCommand])
     return await characteristic.writeValue(packet)
