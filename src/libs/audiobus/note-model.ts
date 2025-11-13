@@ -44,6 +44,8 @@ export default class NoteModel{
     // accidental
     // sound
     // alternate
+
+    detune = 0
         
     get colour(){
         return "rgb("+360*(this.sequenceIndex%12)/12+",150,150)"
