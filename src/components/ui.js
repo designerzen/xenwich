@@ -66,6 +66,12 @@ export default class UI{
         this.elementTempo.classList.toggle("playing", isPlaying)
     }
 
+    whenBluetoothDeviceRequested(callback){
+        this.elementButtonBluetoothConnect.addEventListener("click", e=>{
+            callback && callback() 
+        })
+    }
+
     whenTempoChangesRun(callback){
         this.elementTempo.addEventListener("input", e=>{
             const tempo  = this.elementTempo.value
