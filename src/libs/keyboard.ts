@@ -7,6 +7,7 @@ export const addKeyboardDownEvents = ( callback:Function ) => {
 	
 	// For typing longer numbers
 	let numberSequence = ""
+	let octaveOffset = 41
 
 	const midiNoteSequence = [
 		"q","2","w","3","e","r","5","t","6","y","7","u","i","9","o","0","p",
@@ -15,9 +16,9 @@ export const addKeyboardDownEvents = ( callback:Function ) => {
 	]
 
 	const keysPressed = new Map()
-	
 	const keyboardMap = new Map()
-	midiNoteSequence.forEach( (midiNote, index) => keyboardMap.set( midiNote, index ) )
+
+	midiNoteSequence.forEach( (midiNote, index) => keyboardMap.set( midiNote, index+octaveOffset ) )
 
 	window.addEventListener('keydown', async (event)=>{
 		const isNumber = !isNaN( parseInt(event.key) )
@@ -55,11 +56,13 @@ export const addKeyboardDownEvents = ( callback:Function ) => {
 		}
 
 		let command = undefined
+		let value = -1
 
 		if (keyboardMap.has(event.key))
 		{
-			const noteNumber = keyboardMap.get(event.key) + 41
+			const noteNumber = keyboardMap.get(event.key)
 			keysPressed.set(event.key, noteNumber)
+			console.log("Key down", Commands.NOTE_ON, event.key, noteNumber )
 			callback( Commands.NOTE_ON, event.key, noteNumber )
 			return
 		}
@@ -67,19 +70,20 @@ export const addKeyboardDownEvents = ( callback:Function ) => {
 		switch(event.key)
 		{
 			case 'CapsLock':
-				event.preventDefault();
-				break;
+				event.preventDefault()
+				break
+
+			case 'Escape':
 			case 'Del':
-				event.preventDefault();
-				break;
 			case 'Delete':
-				event.preventDefault();
-				break;
+				command = Commands.PLAYBACK_STOP
+				break
+
 			case 'Enter':
 				command = Commands.PLAYBACK_TOGGLE
 				break;
 			case 'Space':
-				command = Commands.PLAYBACK_TOGGLE
+				command = Commands.TEMPO_TAP
 				break;
 			case 'QuestionMark':
 				event.preventDefault();
@@ -88,10 +92,12 @@ export const addKeyboardDownEvents = ( callback:Function ) => {
 				event.preventDefault();
 				break;
 			case 'ArrowLeft':
-				event.preventDefault();
+				command = Commands.PITCH_BEND
+				value = 0.2
 				break;
 			case 'ArrowRight':
-				event.preventDefault();
+				command = Commands.PITCH_BEND
+				value = -0.2
 				break;
 			case 'ArrowUp':
 				command = Commands.TEMPO_INCREASE
@@ -323,20 +329,27 @@ export const addKeyboardDownEvents = ( callback:Function ) => {
 			numberSequence = ''
 		}
 
-		callback( command, event.key, event )
+		keysPressed.set( event.key, value )
+		callback( command, event.key, value )
 		// console.log("key", ui, event)
 	})
 
-
 	// depress notes held
-	window.addEventListener('keydown', async (event)=>{
+	window.addEventListener('keyup', async (event)=>{
+
+		if ( event.key !== 'Tab' ){
+			event.preventDefault()
+		}
 
 		if (keyboardMap.has(event.key))
 		{
-			event.preventDefault()
-			const noteNumber = keyboardMap.get(event.key)
+			// note was pressed, so send note off
+			const noteNumber = keysPressed.get(event.key)
+			console.log("Key up", Commands.NOTE_OFF, event.key, noteNumber )
 			keysPressed.delete(event.key)
 			callback( Commands.NOTE_OFF, event.key, noteNumber )
+		}else{
+			console.log("Key up but no key down found", event.key, keyboardMap )
 		}
 	})
 }

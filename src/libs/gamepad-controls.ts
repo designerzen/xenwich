@@ -10,7 +10,7 @@ import {
 	DIRECTION_UP, DIRECTION_DOWN, DIRECTION_LEFT, DIRECTION_RIGHT,
 	COMMANDS,
 	GamePadManager
-} from "./hardware/gamepad"
+} from "./gamepad.ts"
 
 /**
  * Start monitoring for global gamepad input
@@ -23,15 +23,6 @@ import {
 export const addGamePadEvents = (application) => {
 	const gamepadHeld = new Map()
 	const gamePadManager = new GamePadManager()
-
-	// enums
-	let gamePadMode = 0
-	let gamePadPlayerIndex = application.getSelectedPerson() ?? -1
-
-	const isUnselected = gamePadPlayerIndex === -1
-	let selectedPerson = isUnselected ? null : application.getPerson( gamePadPlayerIndex )
-	
-	const gamePadModes = ["beats", "vfx", "instruments"] 
 
 	gamePadManager.addEventListener( (button, value, gamePad, heldFor ) => {
 		console.info("GAMEPAD:", {button, value, gamePad, heldFor} )
@@ -65,28 +56,10 @@ export const addGamePadEvents = (application) => {
 			// this then targets the controller for that specfific person.
 			
 			case COMMANDS.SELECT: 
-				gamePadMode = ( gamePadMode + 1 ) % gamePadModes.length
-				const mode = gamePadModes[gamePadMode]
-				application.setFeedback( mode, 0, 'gamepad' )
-				const selectedId = application.selectPerson( application.getSelectedPerson() + 1 )
-
-				if (mode === "vfx"){
-					// etc
-				}
-
-				// check to see if another key is held down...
-				if (gamePad.start){
-					
-				}else{
-					// application.setDiscoMode()
-				}
-				
-				
 				console.info("Gamepad select", selectedId, value, { gamePad, gamepadHeld, heldFor } )
 				break
 
 			case GAME_PAD_CONNECTED:
-				application.setFeedback( "Gamepad connected" , 0, 'gamepad' )
 				console.info("Gamepad connected", button, value, gamePad )
 				break
 
@@ -100,160 +73,57 @@ export const addGamePadEvents = (application) => {
 			// 	break
 
 			case COMMANDS.UP: 
-				if (isUnselected)
-				{
-					application.setBPM( clock.BPM + ( event.shiftKey ? 10 : event.ctrlKey ? 25 : 1 ) )
-				}else{
-					const pitchBend = selectedPerson.activeInstrument.pitchOffset
-					person.activeInstrument.pitchBend( pitchBend+0.5 )
-				}
-				break
-			
-				case COMMANDS.DOWN: 
-				if (isUnselected)
-				{
-					application.setBPM( clock.BPM - ( event.shiftKey ? 10 : event.ctrlKey ? 25 : 1 ) )
-				}else{
-					const pitchBend = selectedPerson.activeInstrument.pitchOffset
-					person.activeInstrument.pitchBend( pitchBend-0.5 )
-				}
 				
 				break
+			
+			case COMMANDS.DOWN: 
+					
+				break
+
 			case COMMANDS.LEFT: 
-				if (isUnselected)
-				{
-					application.kit.kick()
-				}else{
-					person.loadPreviousInstrument()
-				}
+				
 				break
 
 			case COMMANDS.RIGHT: 
-				if (isUnselected)
-				{
-					application.kit.snare()
-				}else{
-					person.loadNextInstrument()
-				}
+				
 				break
 
 			case GAME_PAD_DISCONNECTED:
-				application.setFeedback( "Gamepad connection lost" , 0, 'gamepad' )
-				console.info("Gamepad disconnected", button, value, gamePad )
 				break
 
 			case COMMANDS.START: 
-				application.setFeedback( "Gamepad START" , 0, 'gamepad' )
-				// if select is also being held....
-				if (gamePad.select){
-					application.display.nextFilter( )
-				}else{
-					if (isUnselected)
-					{
-						application.toggleBackgroundPercussion()
-					}else{
-						// user is selected so configure it
-						application.configurePerson(person, person.type+1 )
-					}
-				}
-				console.info("Gamepad start", value, { gamePad, gamepadHeld } )
 				break
 			
 
 			
 			case COMMANDS.A: 
-				console.info("Gamepad A", value, { gamePad, gamepadHeld, heldFor } )
-				// To only activate whilst button is held down...
-				// if ( value )
-				// {
-				// 	getPerson(0).showForm() 
-				// }else{
-				// 	getPerson(0).hideForm() 
-				// }
-
-				application.setRandomDrumTimbres()
-				// application.getPerson(gamePadPlayerIndex).toggleForm() 
 				break
 			
 			case COMMANDS.B: 
-				console.info("Gamepad B", value, { gamePad, gamepadHeld, heldFor } )
-				application.setDiscoMode()
 				break
 			
 			case COMMANDS.X: 
-				console.info("Gamepad X", value, { gamePad, gamepadHeld, heldFor } )
-				// application.getPerson(2).toggleForm() 
-				if (isUnselected)
-				{
-					application.kit.kcik()
-				}else{
-					selectedPerson.loadPreviousInstrument()
-					//application.getPerson(gamePadPlayerIndex) 
-				}
 				break
 			
 			case COMMANDS.Y: 
-				console.info("Gamepad Y", value, { gamePad, gamepadHeld, heldFor } )
-				// application.getPerson(3).toggleForm() 
-				if (isUnselected)
-				{
-					application.kit.snare()
-				}else{
-					//application.getPerson(gamePadPlayerIndex) 
-				}
+				
 				break
 			
 			// If we are in a certain mode...
 			// adapt 
 			case COMMANDS.LB: 
-				// application.stateMachine.get("")
-				console.info("Gamepad LB", value, { gamePad, gamepadHeld, heldFor } )
-				if (isUnselected)
-				{
-					application.kit.hat()
-				}else{
-					//application.getPerson(gamePadPlayerIndex) 
-				}
 				break
 			
 			case COMMANDS.LB: 
-				if (isUnselected)
-				{
-					application.kit.clack()
-				}else{
-					//application.getPerson(gamePadPlayerIndex) 
-				}
-				console.info("Gamepad LB", value, { gamePad, gamepadHeld, heldFor } )
 				break
 
 			case COMMANDS.RB: 
-				if (isUnselected)
-				{
-					application.kit.hat()
-				}else{
-					//application.getPerson(gamePadPlayerIndex) 
-				}
-				console.info("Gamepad RB", value, { gamePad, gamepadHeld, heldFor } )
 				break
 
 			case COMMANDS.LT: 
-				if (isUnselected)
-				{
-					application.kit.kick()
-				}else{
-					//application.getPerson(gamePadPlayerIndex) 
-				}
-				console.info("Gamepad LT", value, { gamePad, gamepadHeld, heldFor } )
 				break
 
 			case COMMANDS.RT: 
-				if (isUnselected)
-				{
-					application.kit.snare()
-				}else{
-					//application.getPerson(gamePadPlayerIndex) 
-				}
-				console.info("Gamepad RT", value, { gamePad, gamepadHeld, heldFor } )
 				break
 
 			default:
