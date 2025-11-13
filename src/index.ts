@@ -8,10 +8,13 @@ import AudioTimer from './libs/audiobus/timing/timer.audio.js'
 import { WebMidi } from 'webmidi'
 import MIDIDevice from './libs/audiobus/midi/midi-device.ts'
 import SynthOscillator from './libs/audiobus/instruments/synth-oscillator.js'
+import PolySynth from './libs/audiobus/instruments/poly-synth.js'
 import NoteModel from './libs/audiobus/note-model.ts'
 import { loadSavedValues } from './libs/audiotool/audio-tool-io.ts'
 import { parseEdoScaleMicroTuningOctave } from './libs/pitfalls/ts/index.ts'
 import { addKeyboardDownEvents } from './libs/keyboard.ts'
+import State from './libs/state.ts'
+import { DEFAULT_OPTIONS } from './options.ts'
 // import { AudioContext, BiquadFilterNode } from "standardized-audio-context"
 
 const ALL_MIDI_CHANNELS = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]
@@ -20,6 +23,7 @@ const ALL_MIDI_CHANNELS = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]
 const MIDIDevices = []
 let timer:AudioTimer = null
 let timeLastBarBegan = 0
+let audioContext:AudioContext
 
 // this is just a buffer for the onscreen keyboard
 let onscreenKeyboardMIDIDevice:MIDIDevice = null
@@ -31,7 +35,7 @@ const BARS_TO_RECORD = 1
 
 // visuals
 let ui:UI = null
-let synth:SynthOscillator = null
+let synth:SynthOscillator|PolySynth = null
 
 // For onscreen interactive keyboard
 const keyboardKeys = ( new Array(128) ).fill("")
@@ -39,6 +43,9 @@ const keyboardKeys = ( new Array(128) ).fill("")
 const ALL_KEYBOARD_NOTES = keyboardKeys.map((keyboardKeys,index)=> new NoteModel( index ))
 // Grab a good sounding part (not too bassy, not too trebly)
 const KEYBOARD_NOTES = ALL_KEYBOARD_NOTES.slice( 41, 94 )
+
+const ONSCREEN_KEYBOARD_NAME = "SVG Keyboard"
+const LETTER_KEYBOARD_NAME = "Keyboard"
 
 let mictrotonalPitches = parseEdoScaleMicroTuningOctave(60, 3, "LLsLLLs", 2, 1)
 
@@ -143,35 +150,50 @@ const onRecordingMusicalEventsLoopBegin = ( activeAudioEvents ) => {
 }
 
 /**
- * 
- * @param e 
+ * EVEMT: Note On requested from onscreen keyboard / external keyboard
+ * @param noteModel 
  */
-const onNoteOnRequestedFromKeyboard = (e) => {
+const onNoteOnRequestedFromKeyboard = (noteModel:NoteModel, fromDevice:string=ONSCREEN_KEYBOARD_NAME ) => {
     //console.info("Key pressed - send out MIDI", e )
-    ui.noteOn( e )
-    onscreenKeyboardMIDIDevice.noteOn( e, timer.now )
+    ui.noteOn( noteModel )
+    onscreenKeyboardMIDIDevice.noteOn( noteModel, timer.now )
    
-    const freq = mictrotonalPitches.freqs[e.noteNumber]
-    const microntonal = e.clone()
+    const freq = mictrotonalPitches.freqs[noteModel.noteNumber]
+    const microntonal = noteModel.clone()
+    microntonal.detune = freq
 
     if (synth)
     {
-        synth.noteOn( microntonal, 1 )
+        synth.noteOn( noteModel, 1 )
+        // synth.noteOn( microntonal, 1 )
         // synth.detune = freq
     }
+
+    if (MIDIDevice.length > 0)
+    {
+        sendMIDINoteToAllDevices( fromDevice, noteModel, "noteOn",  1)
+    }
     
-    console.info("Microtonal Pitch", e.noteNumber, mictrotonalPitches.freqs[e.noteNumber])
+    console.info("onNoteOnRequestedFromKeyboard, Microtonal Pitch", noteModel, mictrotonalPitches.freqs[noteModel.noteNumber])
 }
 
 /**
- * 
- * @param e 
+ * EVENT : Note Off requested from onscreen keyboard / external keyboard
+ * @param noteModel:NoteModel 
  */
-const onNoteOffRequestedFromKeyboard = (e) => {
-    console.info("Key off - send out MIDI", e )
-    ui.noteOff( e )
-    onscreenKeyboardMIDIDevice.noteOff( e, timer.now )
-    synth && synth.noteOff( e )
+const onNoteOffRequestedFromKeyboard = (noteModel:NoteModel, fromDevice:string=ONSCREEN_KEYBOARD_NAME) => {
+    const now = timer.now
+    ui.noteOff( noteModel)
+    onscreenKeyboardMIDIDevice.noteOff( noteModel, now )
+    if (synth)
+    {
+        synth.noteOff( noteModel )
+    }
+    if (MIDIDevice.length > 0)
+    {
+        sendMIDINoteToAllDevices(fromDevice, noteModel, "noteOff",  1)
+    }
+    console.info("onNoteOffRequestedFromKeyboard", noteModel, now )
 }
 
 /**
@@ -259,13 +281,15 @@ const onTick = values => {
  */
 const onAudioContextAvailable = async (event) => {
 
-    const audioContext = new AudioContext() 
-    synth = new SynthOscillator( audioContext )
+    audioContext = new AudioContext() 
+    synth = new PolySynth( audioContext )
+    // synth = new SynthOscillator( audioContext )
     synth.output.connect( audioContext.destination )
     // synth.addTremolo(0.5)
 
     timer = new AudioTimer( audioContext )
-
+  
+    // Front End UI -------------------------------
     ui = new UI( ALL_KEYBOARD_NOTES, onNoteOnRequestedFromKeyboard, onNoteOffRequestedFromKeyboard )
     ui.setTempo( timer.BPM )
     ui.whenTempoChangesRun( tempo => timer.BPM = tempo )
@@ -280,9 +304,8 @@ const onAudioContextAvailable = async (event) => {
         .then(onMIDIDevicesAvailable)
         .catch(err => onUltimateFailure(err))
 
-    timer.startTimer( onTick )
 
-    onscreenKeyboardMIDIDevice = new MIDIDevice("SVG Keyboared")
+    onscreenKeyboardMIDIDevice = new MIDIDevice(ONSCREEN_KEYBOARD_NAME)
     
     MIDIDevices.push( onscreenKeyboardMIDIDevice )
 
@@ -291,25 +314,69 @@ const onAudioContextAvailable = async (event) => {
         switch(command)
         {
             case Commands.PLAYBACK_TOGGLE:
-                timer.togglePlay()
+                timer.toggleTimer()
+                ui.setPlaying( timer.isRunning )
+                break
+
+            case Commands.PLAYBACK_START:
+                timer.startTimer()
+                ui.setPlaying( timer.isRunning )
+                break
+
+            case Commands.PLAYBACK_STOP:
+                timer.stopTimer()
                 ui.setPlaying( timer.isRunning )
                 break
             
             case Commands.TEMPO_TAP:
                 timer.tapTempo()
-                ui.setPlaying( timer.isRunning )
+                ui.setTempo( timer.BPM )
+                break
+            
+            case Commands.TEMPO_INCREASE:
+                timer.BPM++
+                ui.setTempo( timer.BPM )
+                break
+
+            case Commands.TEMPO_DECREASE:
+                timer.BPM--
+                ui.setTempo( timer.BPM )
+                break
+            
+            case Commands.PITCH_BEND:
                 break
             
             case Commands.NOTE_ON:
-                onNoteOnRequestedFromKeyboard( new NoteModel( value ) )
+                onNoteOnRequestedFromKeyboard( new NoteModel( value ), LETTER_KEYBOARD_NAME )
                 break
 
             case Commands.NOTE_OFF:
-                onNoteOffRequestedFromKeyboard( new NoteModel( value ) )
+                onNoteOffRequestedFromKeyboard( new NoteModel( value ), LETTER_KEYBOARD_NAME )
                 break
         }
     })
     
+    // STATE MANAGEMENT -------------------------------
+    // Get state from session and URL
+    const elementMain = document.querySelector('main')
+    const state = State.getInstance(elementMain)
+    state.addEventListener( event => {
+        const bookmark = state.asURI
+        console.info(bookmark, "State Changed", event ) 
+    })
+
+    //state.setDefaults(defaultOptions)
+    state.loadFromLocation( DEFAULT_OPTIONS )
+
+    // updates the URL with the current state (true - encoded)
+    state.updateLocation()
+    
+    // Update UI - this will check all the inputs according to our state	
+    state.updateFrontEnd()
+    
+
+    // state.set( value, button.checked )
+
     // This loads the AudioTool stuff
     const isPreviousUser = false // loadSavedValues()
 
@@ -321,10 +388,22 @@ const onAudioContextAvailable = async (event) => {
 
     // connect to audioTool and start a new project
     // await handleConnectWithPAT( (document.getElementById('pat-input') as HTMLInputElement).value.trim() )
+
+    // start the clock going
+    timer.startTimer( onTick )
+}
+
+const sendMIDINoteToAllDevices = (fromDevice:String, noteModel:NoteModel , action="noteOn", velocity=1) => {
+    MIDIDevices.forEach( device => {
+
+        if ( device.id !== fromDevice )
+        {
+            device[action]( noteModel, audioContext.currentTime, velocity) 
+        }
+    })
 }
 
 document.addEventListener("mousedown", onAudioContextAvailable, {once:true} )
-
 
 // load and complete some tests!
 // import { parseEdoScaleMicroTuningOctave } from "index.ts"
