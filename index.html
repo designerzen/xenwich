@@ -3,19 +3,19 @@
 
 <head>
   <meta charset="UTF-8" />
-  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  <link rel="icon" type="image/svg+xml" href="/designerzen.svg" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Xen AudioTools</title>
 </head>
 
 <body>
 
-
+  <header>
+    <h1>MIDI 2.0 Microtonality</h1>
+    <h2>Proof of concept</h2>
+  </header>
+  
   <main>
-
-    <header>
-
-    </header>
 
     <details>
       <summary>
@@ -58,23 +58,40 @@
       </p>
 
       <label>
+        Quantize
+        <input type="checkbox" value="quantize">
+      </label>
+
+      <label>
         Scale
         <select id="scale-selector">
-          <option>Solfeggio</option>
+          <option value="solfeggio">Solfeggio</option>
+          <option value="major">Major (Ionian)</option>
+          <option value="naturalMinor">Natural Minor (Aeolian)</option>
+          <option value="harmonicMinor">Harmonic Minor</option>
+          <option value="melodicMinor">Melodic Minor</option>
+          <option value="dorian">Dorian</option>
+          <option value="phrygian">Phrygian</option>
+          <option value="lydian">Lydian</option>
+          <option value="mixolydian">Mixolydian</option>
+          <option value="locrian">Locrian</option>
         </select>
       </label>
     </form>
 
+
+    <button type="button" id="btn-connect-to-ble">Connect to Bluetooth Musical Device</button>
+
     <!-- AudioTool integration -->
     <div id="app"></div>
-
-    <footer>
-
-    </footer>
 
     <canvas id="wallpaper" width="320" height="240"></canvas>
   </main>
 
+
+  <footer>
+
+  </footer>
 
   <script type="module" src="/src/index.ts"></script>
 </body>
