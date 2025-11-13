@@ -20,6 +20,7 @@ interface MidiCallback {
     noteOff(data: { note: number; channel: number }): void
     noteOn(data: { note: number; velocity: number; channel: number }): void
     controlChange(data: { controlNumber: number; value: number; channel: number }): void
+    programChange(data: { controlNumber: number; value: number; channel: number }): void
 }
 
 interface ParsedMidiData {
@@ -151,7 +152,7 @@ const parseBluetoothLightDataPacket = (data: number[]): ParsedMidiData | false =
  * 
  * @param uuid 
  * @param callback 
- * @returns 
+ * @returns Function
  */
 const createBlueToothLightDataReceivedCallback = (uuid: string, callback: MidiCallback) => (data: any): void => {
     const array: number[] = Array.from(data)
@@ -184,7 +185,7 @@ const createBlueToothLightDataReceivedCallback = (uuid: string, callback: MidiCa
     } else if (type === POLYPHONIC_AFTERTOUCH) {
         // TODO: Polyphonic aftertouch not implemented
     } else if (type === PROGRAM_CHANGE) {
-        // TODO: Program change not implemented
+        callback.programChange({ controlNumber: data1, value: data2, channel })
     } else if (type === CHANNEL_AT) {
         // TODO: Channel aftertouch not implemented
     } else if (type === PITCH_BEND) {
@@ -274,31 +275,6 @@ export const dispatchPacket = async ( characteristic:any, midiStatus:number, mid
 }
 
 /**
- * Send MIDI Program Change message via BLE
- * 
- * @param characteristic 
- * @param channel 
- * @param value 
- * @returns {Promise}
- */
-export const sendProgramChange = async (
-    characteristic: any,
-    channel: number | null,
-    value: number
-): Promise<void | null> => {
-
-    // no channel to send to, so exit early
-    if (channel === null) 
-    {
-        return null
-    }
-
-    // TODO: This would be different in MIDI2.0
-    const midiStatus = (channel & 0x0f) | PROGRAM_CHANGE
-    return await dispatchPacket( characteristic, midiStatus, value )
-}
-
-/**
  * Send MIDI Note On message via BLE
  * 
  * @param characteristic 
@@ -377,6 +353,7 @@ export const sendControlChange = async (
     return await dispatchPacket( characteristic, midiStatus, controlNumber, value )
 }
 
+
 /**
  * Send MIDI Program Change message via BLE
  * 
@@ -385,21 +362,23 @@ export const sendControlChange = async (
  * @param program 
  * @returns {Promise}
  */
-export const sendProgramChangeNew = async (
+export const sendProgramChange = async (
     characteristic: any,
     channel: number | null,
     program: number
 ): Promise<void | null> => {
-    
+
     // no channel to send to, so exit early
     if (channel === null) 
     {
         return null
     }
 
-    const midiStatus:number = (channel & 0x0f) | PROGRAM_CHANGE
+    // TODO: This would be different in MIDI2.0
+    const midiStatus = (channel & 0x0f) | PROGRAM_CHANGE
     return await dispatchPacket( characteristic, midiStatus, program )
 }
+
 
 /**
  * Send MIDI Polyphonic Aftertouch message via BLE
