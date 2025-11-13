@@ -302,15 +302,19 @@ export default class Timer {
 	}
 
 	/**
-	 *  Set the current timing using a BPM where 
-	 *  one beat in milliseconds =  60,000 / BPM
+	 * Set the current timing using a BPM where 
+	 * one beat in milliseconds =  60,000 / BPM
+	 * 
 	 * @param {Number} bpm Beats per minute
 	 * @returns {Number} period
 	 */
 	set BPM( value ){
-		this.timeBetween = 60000 / parseFloat(value)
+		this.timeBetween = 60000 / Math.max(10, parseFloat(value) )
 	}
 	set bpm( value ){
+		this.BPM = value
+	} 
+	set tempo( value ){
 		this.BPM = value
 	} 
  
