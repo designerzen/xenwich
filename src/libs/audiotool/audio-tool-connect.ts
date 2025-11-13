@@ -439,5 +439,3 @@ export const handleCreateNote = async (): Promise<void> => {
     log('Error creating note: ' + (error as Error).message);
   }
 }
-
-

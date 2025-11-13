@@ -2,21 +2,29 @@ import './assets/style/index.scss'
 
 import * as Commands from './commands.ts'
 
+import State from './libs/state.ts'
+import { DEFAULT_OPTIONS } from './options.ts'
 import UI from './components/ui.js'
+import { WebMidi } from 'webmidi'
+import {
+    sendNoteOn, sendNoteOff,
+    sendControlChange, sendProgramChange,
+    sendPolyphonicAftertouch, sendChannelAftertouch,
+    sendPitchBend,
+    scanForBluetoothPeripherals,
+    watchForBlueToothLightStateChange
+} from './libs/midi-ble/midi-ble.ts'
 
 import AudioTimer from './libs/audiobus/timing/timer.audio.js'
-import { WebMidi } from 'webmidi'
 import MIDIDevice from './libs/audiobus/midi/midi-device.ts'
 import SynthOscillator from './libs/audiobus/instruments/synth-oscillator.js'
 import PolySynth from './libs/audiobus/instruments/poly-synth.js'
 import NoteModel from './libs/audiobus/note-model.ts'
-import { loadSavedValues } from './libs/audiotool/audio-tool-io.ts'
+
 import { parseEdoScaleMicroTuningOctave } from './libs/pitfalls/ts/index.ts'
 import { addKeyboardDownEvents } from './libs/keyboard.ts'
-import State from './libs/state.ts'
-import { DEFAULT_OPTIONS } from './options.ts'
-// import { AudioContext, BiquadFilterNode } from "standardized-audio-context"
 
+// import { AudioContext, BiquadFilterNode } from "standardized-audio-context"
 const ALL_MIDI_CHANNELS = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]
 
 // All connected MIDI Devices
@@ -293,6 +301,9 @@ const onAudioContextAvailable = async (event) => {
     ui = new UI( ALL_KEYBOARD_NOTES, onNoteOnRequestedFromKeyboard, onNoteOffRequestedFromKeyboard )
     ui.setTempo( timer.BPM )
     ui.whenTempoChangesRun( tempo => timer.BPM = tempo )
+    ui.whenBluetoothDeviceRequested( state => {
+        console.warn("Bluetooth Device Requested" , state )    
+    } )
  
     ui.onDoubleClick( () => {
         synth.setRandomTimbre()
