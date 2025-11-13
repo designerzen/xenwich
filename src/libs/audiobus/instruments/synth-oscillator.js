@@ -42,6 +42,10 @@ export default class SynthOscillator{
     customWave = null
 
     #id = "SynthOscillator"
+    isNoteDown = false
+    startedAt = -1
+    active = false
+
 
     get id(){
         return this.#id
@@ -173,6 +177,11 @@ export default class SynthOscillator{
         return !!this.tremoloGain
     }
 
+    get title(){
+
+        return this.options.title ?? "SynthOscilltor"
+    }
+
     constructor(audioContext, options={}){
         this.audioContext = audioContext
         this.options = Object.assign({}, this.options, options)
@@ -204,8 +213,6 @@ export default class SynthOscillator{
         {
             this.shape = options.shape
         }
-
-        this.isNoteDown = false
     }
 
     /**
@@ -263,7 +270,7 @@ export default class SynthOscillator{
      * 
      * @param {*} tonic 
      * @param {*} intervals 
-     * @param {*} repetitions 
+     * @param {Number} repetitions 
      */
     addArpeggioAtIntervals( tonic, intervals=[], repetitions=24 ){
         const now = this.now
@@ -316,6 +323,8 @@ export default class SynthOscillator{
         // fade in envelope ADsr
         const amplitude = velocity * this.options.gain
         const amplitudeSustain = amplitude * this.options.sustain
+        
+        clearInterval(this.timerInterval)
 
         this.gainNode.gain.cancelScheduledValues(startTime)
         // this.gainNode.gain.setValueAtTime( SILENCE, startTime )
@@ -323,6 +332,8 @@ export default class SynthOscillator{
         this.gainNode.gain.linearRampToValueAtTime( amplitude, startTime + this.options.attack )
         // Decay to Sustain
         this.gainNode.gain.linearRampToValueAtTime( amplitudeSustain, startTime + this.options.attack + this.options.decay )
+
+        console.log( this.title, "noteon gain", this, {gain:this.gainNode})
 
 		// Shape the note
 		// this.filterNode.frequency.cancelScheduledValues(startTime)
@@ -387,7 +398,7 @@ export default class SynthOscillator{
 
         // Ensure minimum duration - elapsed 
         const extendNow = elapsed < this.options.minDuration ? 
-            now + this.options.minDuration : 
+            now + this.options.minDuration - elapsed : 
             now
 
         // Use a longer minimum release time (e.g. 400ms)
@@ -403,10 +414,10 @@ export default class SynthOscillator{
         // Use linear ramp for fade out
         this.gainNode.gain.linearRampToValueAtTime( SILENCE, extendNow + this.options.release )
         // this.gainNode.gain.setValueAtTime(currentAmplitude, now)
-
+console.log( this.title, "noteoff gain", this, {gain:this.gainNode})
         // Apply filter fade out
-        // this.filterNode.frequency.cancelScheduledValues(extendNow)
-        // this.filterNode.frequency.linearRampToValueAtTime(this.options.filterCutOff, extendNow + this.options.filterRelease )
+        this.filterNode.frequency.cancelScheduledValues(extendNow)
+        this.filterNode.frequency.linearRampToValueAtTime(this.options.filterCutOff, extendNow + this.options.filterRelease )
 
         // Schedule the oscillator to stop and disconnect after the envelope has completed
         if (!this.options.reuseOscillators && this.oscillator) {
@@ -421,7 +432,8 @@ export default class SynthOscillator{
             // }, (killOscillatorTime - now) * 1000)
         }
 
-        this.isNoteDown = false
+        this.timerInterval = setTimeout(()=> this.isNoteDown = false, this.options.release )
+       
         this.startedAt = -1
         return this
     }
