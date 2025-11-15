@@ -32,6 +32,7 @@
         <output id="midi-devices">
 
         </output>
+
         <output id="midi-input-commands">
 
         </output>
@@ -39,8 +40,6 @@
         <output id="midi-output-commands">
 
         </output>
-
-
       </div>
 
     </details>
@@ -62,7 +61,7 @@
         <input type="checkbox" value="quantize">
       </label>
 
-      <label>
+      <label hidden>
         Scale
         <select id="scale-selector">
           <option value="solfeggio">Solfeggio</option>
@@ -80,7 +79,10 @@
     </form>
 
 
-    <button type="button" id="btn-connect-to-ble">Connect to Bluetooth Musical Device</button>
+    <div style="display:inline-block">
+      <button type="button" id="btn-connect-to-ble">Connect to Bluetooth Musical Device</button>
+      <button type="button" id="btn-toggle-webmidi">Enable WebMIDI</button>
+    </div>
 
     <!-- AudioTool integration -->
     <div id="app"></div>
@@ -92,6 +94,15 @@
   <footer>
 
   </footer>
+
+  <dialog id="error-dialog" aria-live="polite">
+    <h3></h3>
+    <p id="error-message"></p>
+    <p id="error-solution"></p>
+    <form>
+      <button class="error-close-button" type="dialog">Close</button>
+    </form>
+  </dialog>
 
   <script type="module" src="/src/index.ts"></script>
 </body>

@@ -7,13 +7,13 @@ import { DEFAULT_OPTIONS } from './options.ts'
 import UI from './components/ui.js'
 import { WebMidi } from 'webmidi'
 import {
-    sendNoteOn, sendNoteOff,
-    sendControlChange, sendProgramChange,
-    sendPolyphonicAftertouch, sendChannelAftertouch,
-    sendPitchBend,
-    scanForBluetoothPeripherals,
-    watchForBlueToothLightStateChange
+    sendBLENoteOn, sendBLENoteOff,
+    sendBLEControlChange, sendBLEProgramChange,
+    sendBLEPolyphonicAftertouch, sendBLEChannelAftertouch,
+    sendBLEPitchBend
 } from './libs/midi-ble/midi-ble.ts'
+
+import { connectToBLEDevice, disconnectDevice, listCharacteristics, describeDevice, extractCharacteristics, watchCharacteristics, extractMIDICharacteristic } from './libs/midi-ble/ble-connection.ts' // disconnectDevice may be used for cleanup
 
 import AudioTimer from './libs/audiobus/timing/timer.audio.js'
 import MIDIDevice from './libs/audiobus/midi/midi-device.ts'
@@ -23,18 +23,28 @@ import NoteModel from './libs/audiobus/note-model.ts'
 
 import { parseEdoScaleMicroTuningOctave } from './libs/pitfalls/ts/index.ts'
 import { addKeyboardDownEvents } from './libs/keyboard.ts'
+import { BLE_SERVICE_UUID_DEVICE_INFO, BLE_SERVICE_UUID_MIDI } from './libs/midi-ble/ble-constants.ts'
+import jzz from 'jzz'
 
 // import { AudioContext, BiquadFilterNode } from "standardized-audio-context"
 const ALL_MIDI_CHANNELS = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]
 
 // All connected MIDI Devices
-const MIDIDevices = []
+const MIDIDevices:MIDIDevice[] = []
+
 let timer:AudioTimer = null
 let timeLastBarBegan = 0
 let audioContext:AudioContext
 
+// BLE devices and characteristics
+let bluetoothMIDIDevice:BluetoothRemoteGATTCharacteristic
+let bluetoothDevice:BluetoothDevice | null
+let bluetoothWatchUnsubscribes: Array<() => Promise<void>> = []
+
+let webMIDIEnabled:boolean = false
+
 // this is just a buffer for the onscreen keyboard
-let onscreenKeyboardMIDIDevice:MIDIDevice = null
+let onscreenKeyboardMIDIDevice:MIDIDevice
 
 // Feed this for X amount of BARS
 let buffer = []
@@ -120,8 +130,8 @@ const connectToMIDIDevice = ( connectedMIDIDevice, index:number ) => {
  * @param reason String
  */
 const onUltimateFailure = (reason:String) => {
-    console.error("MIDI Failed" , reason )
-    ui.showError( reason )
+    console.error("Serious Failure" , reason )
+    ui.showError( reason, true )
 }
 
 /**
@@ -129,10 +139,10 @@ const onUltimateFailure = (reason:String) => {
  * MIDI IS available, let us check for MIDI devices connected
  * @param event 
  */
-const onMIDIDevicesAvailable = event => {
+const onMIDIDevicesAvailable = (event) => {
     // Display available MIDI input devices
     if (WebMidi.inputs.length < 1) {
-        onUltimateFailure(  "No MIDI devices detected." )
+        ui.showError( "No MIDI devices connected", "Connect a USB or MIDI instrument", false )
     } else {
         // save a link to all connected MIDI devices
         WebMidi.inputs.forEach((device, index) => {
@@ -181,6 +191,22 @@ const onNoteOnRequestedFromKeyboard = (noteModel:NoteModel, fromDevice:string=ON
     {
         sendMIDINoteToAllDevices( fromDevice, noteModel, "noteOn",  1)
     }
+
+    if (bluetoothMIDIDevice)
+    {
+        // Send actual note from keyboard to BLE MIDI device
+        sendBLENoteOn( bluetoothMIDIDevice, 1, noteModel.noteNumber, 100 )
+            .then( result => {
+                console.log('Sent MIDI NOTE ON to BLE device!', { note: noteModel.noteNumber, result } )
+            })
+            .catch( err => {
+                console.error('Failed to send MIDI NOTE ON to BLE device!', { 
+                    note: noteModel.noteNumber, 
+                    error: err && err.message ? err.message : String(err),
+                    device: bluetoothMIDIDevice
+                })
+            })
+    }
     
     console.info("onNoteOnRequestedFromKeyboard, Microtonal Pitch", noteModel, mictrotonalPitches.freqs[noteModel.noteNumber])
 }
@@ -197,9 +223,26 @@ const onNoteOffRequestedFromKeyboard = (noteModel:NoteModel, fromDevice:string=O
     {
         synth.noteOff( noteModel )
     }
+    
     if (MIDIDevice.length > 0)
     {
         sendMIDINoteToAllDevices(fromDevice, noteModel, "noteOff",  1)
+    }
+        
+    if (bluetoothMIDIDevice)
+    {
+        // Send actual note from keyboard to BLE MIDI device
+        sendBLENoteOff( bluetoothMIDIDevice, 1, noteModel.noteNumber, 0 )
+            .then( result => {
+                console.log('Sent MIDI NOTE OFF to BLE device!', { note: noteModel.noteNumber, result } )
+            })
+            .catch( err => {
+                console.error('Failed to send MIDI NOTE OFF to BLE device!', { 
+                    note: noteModel.noteNumber, 
+                    error: err && err.message ? err.message : String(err),
+                    device: bluetoothMIDIDevice
+                })
+            })
     }
     console.info("onNoteOffRequestedFromKeyboard", noteModel, now )
 }
@@ -284,6 +327,139 @@ const onTick = values => {
 
 
 /**
+ * Disconnect BLE device and clean up
+ */
+const disconnectBluetoothDevice = async () => {
+    console.info('[BLE] Disconnecting from device...', { device: bluetoothDevice?.name })
+    
+    // Unsubscribe from all characteristic watches
+    for (const unsub of bluetoothWatchUnsubscribes) {
+        try {
+            await unsub()
+        } catch (err: any) {
+            console.warn('[BLE] Error unsubscribing from characteristic:', err)
+        }
+    }
+    bluetoothWatchUnsubscribes = []
+    
+    // Disconnect the GATT server
+    if (bluetoothDevice) {
+        disconnectDevice(bluetoothDevice)
+    }
+    
+    // Clear references
+    bluetoothMIDIDevice = undefined as any
+    bluetoothDevice = null
+    
+    // Update UI
+    ui.showBluetoothStatus('✓ Disconnected from device')
+    ui.whenBluetoothDeviceRequested(handleBluetoothConnect)
+}
+
+/**
+ * Connect to BLE device and set up MIDI
+ */
+const handleBluetoothConnect = async () => {
+    try {
+        ui.showBluetoothStatus('Opening device chooser...')
+       
+        // @ts-ignore - requestAndQuery imported but ts doesn't see usage yet
+        // Include common BLE service UUIDs in optionalServices to allow access
+        const result = await connectToBLEDevice()
+
+        ui.addBluetoothDevice(result.device, result.capabilities)
+        ui.showBluetoothStatus(`✓ Connecting to ${result.device.name || 'Unknown Device'}`)
+
+        const characteristics = extractCharacteristics( result.capabilities )
+        const midiCharacteristic:BluetoothRemoteGATTCharacteristic|undefined = extractMIDICharacteristic(characteristics)
+
+        if (midiCharacteristic) 
+        {
+            console.warn('MIDI Device was located using BLE', {
+                characteristic: midiCharacteristic,
+                uuid: midiCharacteristic.uuid,
+                writable: midiCharacteristic.properties?.write || midiCharacteristic.properties?.writeWithoutResponse,
+                properties: midiCharacteristic.properties
+            })
+            bluetoothMIDIDevice = midiCharacteristic
+        } else {
+            console.warn('No BLE MIDI characteristic found on device')
+            ui.showBluetoothStatus(`Bluetooth device lacks MIDI ${result.device.name || 'Unknown Device'}`)
+            return
+        }
+
+        const availableMIDIBluetoothCharacteristics = [midiCharacteristic]
+
+        console.log("Extracted capabilities from capabilities", characteristics )
+
+        // monitor all characteristics for incoming data (inc. MIDI)
+        const unsubs = await watchCharacteristics(availableMIDIBluetoothCharacteristics, (capability, value)=>{
+            // capability: CapabilityCharacteristic, value: DataView
+            const data = new Uint8Array(value.buffer)
+            console.log('Characteristic data received', { capability, data, value })
+            // check to see if it is MIDI data!
+            switch (capability.uuid)
+            {
+                case BLE_SERVICE_UUID_MIDI:
+                    // MIDI Data received over BLE!
+                    // parse MIDI data
+                    const midiData = jzz.MIDI(data)
+
+                    console.log('MIDI Data received over BLE', {data, midiData} )
+                    break
+
+                default:
+                    console.log('Non-MIDI Data received over BLE', data )
+            }
+        })
+
+        bluetoothWatchUnsubscribes = unsubs
+
+        ui.showBluetoothStatus(`✓ Connected to ${result.device.name || 'Unknown Device'}`)
+        
+        // Store device reference for later disconnect
+        bluetoothDevice = result.device
+
+        console.info("Bluetooth Device connected",{ result, characteristics}, listCharacteristics(result.capabilities), describeDevice(result.device) )
+
+        // Change button to disconnect mode
+        ui.whenBluetoothDeviceRequested(disconnectBluetoothDevice)
+
+    } catch (error: any) {
+        ui.showBluetoothStatus(`✗ BLE Error: ${error.message || 'Failed to connect'}`)
+        ui.showError( `Bluetooth connection could not be established: ${error.message || 'Failed to connect'}` )
+        console.error("`Bluetooth connection could not be established",error )
+    }
+}
+
+// also now monitor for MIDI inputs...
+// WebMIDI will be enabled/disabled with the UI toggle button
+const toggleWebMIDI = async () => {
+    if (!webMIDIEnabled) {
+        try {
+            await WebMidi.enable()
+            webMIDIEnabled = true
+            ui.setWebMIDIButtonText('Disable WebMIDI')
+            onMIDIDevicesAvailable(undefined as any)
+        } catch (err:any) {
+            onUltimateFailure(err)
+        }
+    } else {
+        try {
+            WebMidi.disable()
+            webMIDIEnabled = false
+            ui.setWebMIDIButtonText('Enable WebMIDI')
+            // clear any connected MIDIDevices
+            MIDIDevices.length = 0
+            ui.inputs.innerHTML = ''
+            ui.outputs.innerHTML = ''
+        } catch (err:any) {
+            console.warn('Failed to disable WebMIDI', err)
+        }
+    }
+}
+
+/**
  * AudioContext is now available
  * @param event 
  */
@@ -300,20 +476,17 @@ const onAudioContextAvailable = async (event) => {
     // Front End UI -------------------------------
     ui = new UI( ALL_KEYBOARD_NOTES, onNoteOnRequestedFromKeyboard, onNoteOffRequestedFromKeyboard )
     ui.setTempo( timer.BPM )
-    ui.whenTempoChangesRun( tempo => timer.BPM = tempo )
-    ui.whenBluetoothDeviceRequested( state => {
-        console.warn("Bluetooth Device Requested" , state )    
-    } )
+    ui.whenTempoChangesRun( (tempo:number) => timer.BPM = tempo )
+    ui.whenBluetoothDeviceRequested( handleBluetoothConnect )
  
     ui.onDoubleClick( () => {
         synth.setRandomTimbre()
     })
 
-    // also now monitor for MIDI inputs...
-    WebMidi
-        .enable()
-        .then(onMIDIDevicesAvailable)
-        .catch(err => onUltimateFailure(err))
+
+    // Wire UI toggle
+    ui.setWebMIDIButtonText('Enable WebMIDI')
+    ui.whenWebMIDIToggled(toggleWebMIDI)
 
 
     onscreenKeyboardMIDIDevice = new MIDIDevice(ONSCREEN_KEYBOARD_NAME)

@@ -10,6 +10,9 @@ const DOM_ID_SELECTOR_SCALE = "scale-selector"
 const DOM_ID_RANGE_TEMPO = "tempo"
 const DOM_ID_BPM = "bpm"
 const DOM_ID_BUTTON_CONNECT_BLUETOOTH = "btn-connect-to-ble"
+const DOM_ID_BUTTON_TOGGLE_WEBMIDI = "btn-toggle-webmidi"
+
+const DOM_ID_DIALOG_ERROR = "error-dialog"
 
 export default class UI{
 
@@ -25,6 +28,9 @@ export default class UI{
         this.elementBPM = document.getElementById(DOM_ID_BPM)
         
         this.elementButtonBluetoothConnect = document.getElementById(DOM_ID_BUTTON_CONNECT_BLUETOOTH)
+    
+        this.elementButtonWebMIDI = document.getElementById(DOM_ID_BUTTON_TOGGLE_WEBMIDI)
+        this.elementErrorDialog = document.getElementById(DOM_ID_DIALOG_ERROR )
         
         this.wallpaperCanvas = document.getElementById("wallpaper")
         this.noteVisualiser = new NoteVisualiser( keyboardNotes, this.wallpaperCanvas, false, 0 ) // ALL_KEYBOARD_NOTES
@@ -72,6 +78,21 @@ export default class UI{
         })
     }
 
+    setBluetoothButtonText(text = "Connect Bluetooth"){
+        this.elementButtonBluetoothConnect.textContent = text
+    }
+
+    setWebMIDIButtonText(text = "Enable WebMIDI"){
+        if (this.elementButtonWebMIDI) this.elementButtonWebMIDI.textContent = text
+    }
+
+    whenWebMIDIToggled(callback){
+        if (!this.elementButtonWebMIDI) return
+        this.elementButtonWebMIDI.addEventListener('click', e => {
+            callback && callback()
+        })
+    }
+
     whenTempoChangesRun(callback){
         this.elementTempo.addEventListener("input", e=>{
             const tempo  = this.elementTempo.value
@@ -113,17 +134,25 @@ export default class UI{
             elapsed, expected, drift, level, intervals, lag
         } = values
 
-        this.elementClock.innerHTML = `${String(bar).padStart(2, '0')}:${bars}:${String(barsElapsed).padStart(3, '0')} [${String(divisionsElapsed).padStart(2, '0')}] ${formatTimeStampFromSeconds(elapsed)} seconds`
+        this.elementClock.textContent = `${String(bar).padStart(2, '0')}:${bars}:${String(barsElapsed).padStart(3, '0')} [${String(divisionsElapsed).padStart(2, '0')}] ${formatTimeStampFromSeconds(elapsed)} seconds`
+        // this.elementClock.innerHTML = `${String(bar).padStart(2, '0')}:${bars}:${String(barsElapsed).padStart(3, '0')} [${String(divisionsElapsed).padStart(2, '0')}] ${formatTimeStampFromSeconds(elapsed)} seconds`
         // this.elementClock.innerHTML = `${bar}:${bars}:${barsElapsed} [${divisionsElapsed}] ${intervals}, ${elapsed.toFixed(2)} seconds`
     }
 
+    /**
+     * Show Note On
+     * @param {*} note 
+     */
     noteOn(note) {
         this.noteVisualiser.noteOn( note )
         this.keyboard.setKeyAsActive( note )
         this.addCommand("NoteOn #" + note.number )
-
     }
 
+    /**
+     * Show Note Off
+     * @param {*} note 
+     */
     noteOff(note) {
         this.noteVisualiser.noteOff( note )
         this.keyboard.setKeyAsInactive( note )
@@ -131,12 +160,64 @@ export default class UI{
     }
 
     /**
-     * 
+     * Displays an error on the screen
      * @param {String} errorMessage 
+     * @param {Boolean} fatal - does this break the app?
      */
-    showError( errorMessage )
+    showError( errorMessage, solution="", fatal=false )
     {
         this.inputs.innerHTML = errorMessage
+        this.inputs.classList.toggle("error", true)
+
+        const elementIssue = this.elementErrorDialog.querySelector("#error-message")
+        const elementSolution = this.elementErrorDialog.querySelector("#error-solution")
+        
+        elementIssue.innerHTML = errorMessage
+        if (solution && solution.length > 0)
+        {
+            elementSolution.innerHTML = solution
+            elementSolution.hidden = false
+        }else{
+            elementSolution.hidden = true
+        }
+      
+        this.elementErrorDialog.open = true
+        console.error(errorMessage)
+    }
+
+    /**
+     * Display BLE device info and capabilities
+     * @param {BluetoothDevice} device
+     * @param {Object} capabilities { services: Array }
+     */
+    addBluetoothDevice( device, capabilities ){
+        let html = `<strong>BLE Device: ${device.name || 'Unknown'}</strong><br>`
+        html += `UUID: ${device.id}<br>`
+        if (capabilities && capabilities.services) {
+            html += `<details><summary>Services & Characteristics (${capabilities.services.length})</summary>`
+            capabilities.services.forEach(svc => {
+                html += `<div style="margin-left: 1em;">`
+                html += `<strong>Service:</strong> ${svc.uuid}<br>`
+                if (svc.characteristics) {
+                    svc.characteristics.forEach(ch => {
+                        const props = ch.properties ? Object.keys(ch.properties).filter(k => ch.properties[k]) : []
+                        html += `<div style="margin-left: 1em;"><code>${ch.uuid}</code> [${props.join(', ')}]</div>`
+                    })
+                }
+                html += `</div>`
+            })
+            html += `</details>`
+        }
+        html += `<hr>`
+        this.devices.innerHTML += html
+    }
+
+    /**
+     * Show error/status message in the devices panel
+     * @param {String} message
+     */
+    showBluetoothStatus( message ){
+        this.elementButtonBluetoothConnect.textContent = message
     }
 
     onDoubleClick( callback){
