@@ -19,7 +19,10 @@
  * The 13-bit timestamp for the first MIDI message in a packet is calculated using 6 bits from the
  * header byte and 7 bits from the timestamp byte.
  */
-import {MIDI_ACTIVE_SENSING, MIDI_CHANNEL_PRESSURE, MIDI_CONTROL_CHANGE, MIDI_TYPES, MIDI_NOTE_OFF, MIDI_NOTE_ON, MIDI_PITCH_BEND, MIDI_POLYPHONIC_KEY_PRESSURE, MIDI_PROGRAM_CHANGE, getMIDIChannelEncoded, getMIDIStatusBytesFromNibbleAndChannel, getMIDIStatusBytesFromByteAndChannel} from './midi-constants.ts'
+import {
+    MIDI_ACTIVE_SENSING, MIDI_CHANNEL_PRESSURE, MIDI_CONTROL_CHANGE, MIDI_TYPES, MIDI_NOTE_OFF, MIDI_NOTE_ON, MIDI_PITCH_BEND, MIDI_POLYPHONIC_KEY_PRESSURE, MIDI_PROGRAM_CHANGE, 
+    getMIDIChannelEncoded, getMIDIStatusBytesFromNibbleAndChannel, getMIDIStatusBytesFromByteAndChannel
+} from './midi-constants.ts'
 
 // Type Definitions & Interfaces
 interface MidiCallback {
@@ -175,40 +178,6 @@ const getTimestampBytes = ( time?:number|undefined ): TimestampBytes => {
 
 
 const toHex = (n:number):string => `0x${n.toString(16).padStart(2, '0')}`
-
-
-
-
-
-
-export const sendPacket = (note, type) => async (dispatch, getState) => {
-  const { bluetooth, midi } = getState();
-  const characteristic = bluetooth.get('characteristic');
-  if (!characteristic) {
-    return Promise.resolve('Cannot send packet without characteristic');
-  }
-  const channel = midi.get('channel');
-  const velocity = midi.get('velocity');
-  const { header, messageTimestamp } = getTimestampBytes();
-  const midiStatus = channel & 0x0f | type;
-  const midiOne = note & 0x7f;
-  const midiTwo = velocity & 0x7f;
-  const packet = new Uint8Array([
-    header,
-    messageTimestamp,
-    midiStatus,
-    midiOne,
-    midiTwo
-  ]);
-  return characteristic.writeValue(packet).then(result => dispatch({
-    type: types.SET_MIDI_PACKET,
-    payload: {
-      packet,
-      result
-    }
-  }));
-};
-
 
 // MIDI Transactions --------------------------------------------------------------------------------------
 
