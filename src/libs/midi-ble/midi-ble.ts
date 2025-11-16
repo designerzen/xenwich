@@ -1,4 +1,25 @@
-import {MIDI_ACTIVE_SENSING, MIDI_CHANNEL_PRESSURE, MIDI_CONTROL_CHANGE, MIDI_TYPES, MIDI_NOTE_OFF, MIDI_NOTE_ON, MIDI_PITCH_BEND, MIDI_POLYPHONIC_KEY_PRESSURE, MIDI_PROGRAM_CHANGE} from './midi-constants.ts'
+// https://midi.org/midi-over-bluetooth-low-energy-ble-midi
+/**
+ * In transmitting MIDI data over Bluetooth, a series of MIDI messages of various sizes must be
+ * encoded into packets no larger than the negotiated MTU minus 3 bytes (typically 20 bytes or
+ * larger.)
+ * 
+ * The first byte of all BLE packets must be a header byte. This is followed by timestamp bytes and
+ * MIDI messages.
+ * Header Byte
+ * bit 7 Set to 1.
+ * bit 6 Set to 0. (Reserved for future use)
+ * bits 5-0 timestampHigh:Most significant 6 bits of timestamp information.
+ * The header byte contains the topmost 6 bits of timing information for MIDI events in the BLE
+ * packet. The remaining 7 bits of timing information for individual MIDI messages encoded in a
+ * packet is expressed by timestamp bytes. Timestamps are discussed in detail in a later section.
+ * Timestamp Byte
+ * bit 7 Set to 1.
+ * bits 6-0 timestampLow: Least Significant 7 bits of timestamp information.
+ * The 13-bit timestamp for the first MIDI message in a packet is calculated using 6 bits from the
+ * header byte and 7 bits from the timestamp byte.
+ */
+import {MIDI_ACTIVE_SENSING, MIDI_CHANNEL_PRESSURE, MIDI_CONTROL_CHANGE, MIDI_TYPES, MIDI_NOTE_OFF, MIDI_NOTE_ON, MIDI_PITCH_BEND, MIDI_POLYPHONIC_KEY_PRESSURE, MIDI_PROGRAM_CHANGE, getMIDIChannelEncoded, getMIDIStatusBytesFromNibbleAndChannel, getMIDIStatusBytesFromByteAndChannel} from './midi-constants.ts'
 
 // Type Definitions & Interfaces
 interface MidiCallback {
@@ -99,12 +120,34 @@ const createBlueToothLightDataReceivedCallback = (uuid: string, callback: MidiCa
 // TX MIDI Data Creator --------------------------------------------------------------------------------------
 
 /**
+ * Specification for MIDI over Bluetooth Low Energy (BLE-MIDI) 1.0
+ * (Version 1.0 Page 7 November 1, 2015)
  * Generate MIDI timestamp bytes for BLE packet from a timestamp
  * otherwise create the timestamp bytes for the current time
  * BLE MIDI timestamp is 13 bits, split into 2 bytes: 
  * 
  *  header (MSB)
  *  messageTimestamp (LSB)
+ * 
+ * Timestamps are 13-bit values in milliseconds, and therefore the maximum value is 8,191 ms.
+ * Timestamps must be issued by the sender in a monotonically increasing fashion.
+ * 
+ * The 13-bit timestamp for a MIDI message is composed of two parts, a timestampHigh containing
+ * the most significant 6 bits and a timestampLow containing the least significant 7 bits. The
+ * timestampHigh is initially set using the lower 6 bits from the header byte while the timestampLow is
+ * formed of the lower 7 bits from the timestamp byte. Should the timestamp value of a subsequent
+ * MIDI message in the same packet overflow/wrap (i.e., the timestampLow is smaller than a
+ * preceding timestampLow), the receiver is responsible for tracking this by incrementing the
+ * timestampHigh by one (the incremented value is not transmitted, only understood as a result of the
+ * overflow condition).
+ * 
+ * In practice, the time difference between MIDI messages in the same BLE packet should not span
+ * more than twice the connection interval. As a result, a maximum of one overflow/wrap may occur
+ * per BLE packet.
+ * 
+ * Timestamps are in the sender’s clock domain and are not allowed to be scheduled in the future.
+ * Correlation between the receiver’s clock and the received timestamps must be performed to
+ * ensure accurate rendering of MIDI messages, and is not addressed in this document.
  * 
  * @param time 
  * @returns TimestampBytes
@@ -119,20 +162,61 @@ const getTimestampBytes = ( time?:number|undefined ): TimestampBytes => {
     }
 }
 
-/**
- * MIDI uses channels 0-15, but users specify 1-16, so subtract 1
- * @param channel 
- * @returns {number}
- */
-const getChannelEncoded = (channel:number=1) => Math.max(1, channel - 1) & 0x0f
+// Using Date.now()
+// const getTimestampBytes = () => {
+//   const d = Date.now().toString(2).split('').reverse();
+//   const byte0 = ['1', '0', d[12], d[11], d[10], d[9], d[8], d[7]];
+//   const byte1 = ['1', d[6], d[5], d[4], d[3], d[2], d[1], d[0]];
+//   return {
+//     header: parseInt(byte0.join(''), 2),
+//     messageTimestamp: parseInt(byte1.join(''), 2)
+//   }
+// }
+
 
 const toHex = (n:number):string => `0x${n.toString(16).padStart(2, '0')}`
+
+
+
+
+
+
+export const sendPacket = (note, type) => async (dispatch, getState) => {
+  const { bluetooth, midi } = getState();
+  const characteristic = bluetooth.get('characteristic');
+  if (!characteristic) {
+    return Promise.resolve('Cannot send packet without characteristic');
+  }
+  const channel = midi.get('channel');
+  const velocity = midi.get('velocity');
+  const { header, messageTimestamp } = getTimestampBytes();
+  const midiStatus = channel & 0x0f | type;
+  const midiOne = note & 0x7f;
+  const midiTwo = velocity & 0x7f;
+  const packet = new Uint8Array([
+    header,
+    messageTimestamp,
+    midiStatus,
+    midiOne,
+    midiTwo
+  ]);
+  return characteristic.writeValue(packet).then(result => dispatch({
+    type: types.SET_MIDI_PACKET,
+    payload: {
+      packet,
+      result
+    }
+  }));
+};
+
 
 // MIDI Transactions --------------------------------------------------------------------------------------
 
 /**
  * TODO: Create MIDI 2.0 compliant packets
  * Send data to the BTLE characteristic
+ * BLE-MIDI packets are a repetition of 
+ * [header][timestamp][data...][timestamp][data...] ...
  * 
  * @param characteristic 
  * @param midiStatus 
@@ -143,7 +227,13 @@ const toHex = (n:number):string => `0x${n.toString(16).padStart(2, '0')}`
  */
 const dispatchBLEPacket = async ( characteristic:any, midiStatus:number, midiFirstCommand:number, midiSecondCommand:number = 0, timestamp:number|undefined=undefined ) => {
     const { header, messageTimestamp }:TimestampBytes = getTimestampBytes(timestamp)
-    const packet:Uint8Array = new Uint8Array([header, messageTimestamp, midiStatus, midiFirstCommand, midiSecondCommand])
+    const packet:Uint8Array = new Uint8Array([
+        header, 
+        messageTimestamp, 
+        midiStatus, 
+        midiFirstCommand & 0x7f, 
+        midiSecondCommand & 0x7f
+    ])
     
     console.log(MIDI_LOG_PREFIX, 'Sending packet:', {
         header: `0x${header.toString(16).padStart(2, '0')}`,
@@ -192,14 +282,11 @@ export const sendBLENoteOn = async (
     channel: number | null,
     note: number,
     velocity: number
-): Promise<void | null> => {
+): Promise<boolean | null> => {
  
     // no channel to send to, so exit early
     if (channel === null) { return null }
-
-    const midiStatus:number = getChannelEncoded(channel) | MIDI_NOTE_ON
-    // const midiStatus:number = getChannelEncoded(channel) | MIDI_NOTE_ON
-    return await dispatchBLEPacket( characteristic, midiStatus, note, velocity )
+    return await dispatchBLEPacket( characteristic, getMIDIStatusBytesFromNibbleAndChannel( MIDI_NOTE_ON, channel ), note, velocity )
 }
 
 /**
@@ -216,10 +303,9 @@ export const sendBLENoteOff = async (
     channel: number | null,
     note: number,
     velocity: number = 0
-): Promise<void | null> => {
+): Promise<boolean | null> => {
     if (channel === null) { return null }
-    const midiStatus:number = getChannelEncoded(channel) | MIDI_NOTE_OFF
-    return await dispatchBLEPacket( characteristic, midiStatus, note, velocity )
+    return await dispatchBLEPacket( characteristic, getMIDIStatusBytesFromNibbleAndChannel( MIDI_NOTE_OFF, channel ), note, velocity )
 }
 
 /**
@@ -236,13 +322,11 @@ export const sendBLEControlChange = async (
     channel: number | null,
     controlNumber: number,
     value: number
-): Promise<void | null> => {
+): Promise<boolean | null> => {
     // no channel to send to, so exit early
     if (channel === null) { return null }
-    const midiStatus:number = getChannelEncoded(channel) | MIDI_CONTROL_CHANGE
-    return await dispatchBLEPacket( characteristic, midiStatus, controlNumber, value )
+    return await dispatchBLEPacket( characteristic, getMIDIStatusBytesFromByteAndChannel(MIDI_CONTROL_CHANGE, channel), controlNumber, value )
 }
-
 
 /**
  * Send MIDI Program Change message via BLE
@@ -256,11 +340,10 @@ export const sendBLEProgramChange = async (
     characteristic: BluetoothRemoteGATTCharacteristic,
     channel: number | null,
     program: number
-): Promise<void | null> => {
+): Promise<boolean | null> => {
     // no channel to send to, so exit early
     if (channel === null) { return null }
-    const midiStatus = getChannelEncoded(channel) | MIDI_PROGRAM_CHANGE
-    return await dispatchBLEPacket( characteristic, midiStatus, program )
+    return await dispatchBLEPacket( characteristic, getMIDIStatusBytesFromByteAndChannel( MIDI_PROGRAM_CHANGE, channel), program )
 }
 
 
@@ -278,11 +361,10 @@ export const sendBLEPolyphonicAftertouch = async (
     channel: number | null,
     note: number,
     pressure: number
-): Promise<void | null> => {
+): Promise<boolean | null> => {
     // no channel to send to, so exit early
     if (channel === null) { return null }
-    const midiStatus:number = getChannelEncoded(channel) | MIDI_POLYPHONIC_KEY_PRESSURE
-    return await dispatchBLEPacket( characteristic, midiStatus, note, pressure )
+    return await dispatchBLEPacket( characteristic, getMIDIStatusBytesFromByteAndChannel(MIDI_POLYPHONIC_KEY_PRESSURE, channel), note, pressure )
 }
 
 /**
@@ -297,11 +379,10 @@ export const sendBLEChannelAftertouch = async (
     characteristic: BluetoothRemoteGATTCharacteristic,
     channel: number | null,
     pressure: number
-): Promise<void | null> => {
+): Promise<boolean | null> => {
     // no channel to send to, so exit early
     if (channel === null) { return null }
-    const midiStatus:number = getChannelEncoded(channel) | MIDI_CHANNEL_PRESSURE
-    return await dispatchBLEPacket( characteristic, midiStatus, pressure )
+    return await dispatchBLEPacket( characteristic, getMIDIStatusBytesFromByteAndChannel(MIDI_CHANNEL_PRESSURE, channel), pressure )
 }
 
 /**
@@ -318,9 +399,8 @@ export const sendBLEPitchBend = async (
     channel: number | null,
     lsb: number,
     msb: number
-): Promise<void | null> => {
+): Promise<boolean | null> => {
     // no channel to send to, so exit early
     if (channel === null) { return null }
-    const midiStatus:number = getChannelEncoded(channel) | MIDI_PITCH_BEND
-    return await dispatchBLEPacket( characteristic, midiStatus, lsb, msb )
+    return await dispatchBLEPacket( characteristic, getMIDIStatusBytesFromByteAndChannel(MIDI_PITCH_BEND, channel), lsb, msb )
 }

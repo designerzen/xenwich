@@ -1,6 +1,7 @@
 // MIDI Status Byte Constants
 
 // Channel Voice Messages
+// <<4 for MIDI commands rahter than these nibbles
 export const MIDI_NOTE_OFF = 0x8
 export const MIDI_NOTE_ON = 0x9
 export const MIDI_POLYPHONIC_KEY_PRESSURE = 0xA
@@ -8,6 +9,17 @@ export const MIDI_CONTROL_CHANGE = 0xB
 export const MIDI_PROGRAM_CHANGE = 0xC
 export const MIDI_CHANNEL_PRESSURE = 0xD
 export const MIDI_PITCH_BEND = 0xE
+/**
+ * MIDI uses channels 0-15, but users specify 1-16, so subtract 1
+ * and return as a 4 bit value
+ * @param channel 
+ * @returns {number}
+ */
+export const getMIDIChannelEncoded = (channel:number=1) => Math.max(1, channel - 1) & 0x0f
+
+export const getMIDIBytesFromNibble = (nibble:number) => nibble << 4
+export const getMIDIStatusBytesFromByteAndChannel = (byte:number, channel:number) => getMIDIChannelEncoded(channel) | byte
+export const getMIDIStatusBytesFromNibbleAndChannel = (nibble:number, channel:number) => getMIDIChannelEncoded(channel) | getMIDIBytesFromNibble( nibble )
 
 // System Common Messages
 export const MIDI_SYSTEM_EXCLUSIVE = 0xF0   // SYSEX!

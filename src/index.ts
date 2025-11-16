@@ -37,7 +37,7 @@ let timeLastBarBegan = 0
 let audioContext:AudioContext
 
 // BLE devices and characteristics
-let bluetoothMIDIDevice:BluetoothRemoteGATTCharacteristic
+let bluetoothMIDICharacteristic:BluetoothRemoteGATTCharacteristic
 let bluetoothDevice:BluetoothDevice | null
 let bluetoothWatchUnsubscribes: Array<() => Promise<void>> = []
 
@@ -192,10 +192,10 @@ const onNoteOnRequestedFromKeyboard = (noteModel:NoteModel, fromDevice:string=ON
         sendMIDINoteToAllDevices( fromDevice, noteModel, "noteOn",  1)
     }
 
-    if (bluetoothMIDIDevice)
+    if (bluetoothMIDICharacteristic)
     {
         // Send actual note from keyboard to BLE MIDI device
-        sendBLENoteOn( bluetoothMIDIDevice, 1, noteModel.noteNumber, 100 )
+        sendBLENoteOn( bluetoothMIDICharacteristic, 1, noteModel.noteNumber, 100 )
             .then( result => {
                 console.log('Sent MIDI NOTE ON to BLE device!', { note: noteModel.noteNumber, result } )
             })
@@ -203,7 +203,7 @@ const onNoteOnRequestedFromKeyboard = (noteModel:NoteModel, fromDevice:string=ON
                 console.error('Failed to send MIDI NOTE ON to BLE device!', { 
                     note: noteModel.noteNumber, 
                     error: err && err.message ? err.message : String(err),
-                    device: bluetoothMIDIDevice
+                    device: bluetoothMIDICharacteristic
                 })
             })
     }
@@ -229,10 +229,10 @@ const onNoteOffRequestedFromKeyboard = (noteModel:NoteModel, fromDevice:string=O
         sendMIDINoteToAllDevices(fromDevice, noteModel, "noteOff",  1)
     }
         
-    if (bluetoothMIDIDevice)
+    if (bluetoothMIDICharacteristic)
     {
         // Send actual note from keyboard to BLE MIDI device
-        sendBLENoteOff( bluetoothMIDIDevice, 1, noteModel.noteNumber, 0 )
+        sendBLENoteOff( bluetoothMIDICharacteristic, 1, noteModel.noteNumber, 0 )
             .then( result => {
                 console.log('Sent MIDI NOTE OFF to BLE device!', { note: noteModel.noteNumber, result } )
             })
@@ -240,7 +240,7 @@ const onNoteOffRequestedFromKeyboard = (noteModel:NoteModel, fromDevice:string=O
                 console.error('Failed to send MIDI NOTE OFF to BLE device!', { 
                     note: noteModel.noteNumber, 
                     error: err && err.message ? err.message : String(err),
-                    device: bluetoothMIDIDevice
+                    device: bluetoothMIDICharacteristic
                 })
             })
     }
@@ -348,7 +348,7 @@ const disconnectBluetoothDevice = async () => {
     }
     
     // Clear references
-    bluetoothMIDIDevice = undefined as any
+    bluetoothMIDICharacteristic = undefined as any
     bluetoothDevice = null
     
     // Update UI
@@ -361,36 +361,42 @@ const disconnectBluetoothDevice = async () => {
  */
 const handleBluetoothConnect = async () => {
     try {
+
         ui.showBluetoothStatus('Opening device chooser...')
        
-        // @ts-ignore - requestAndQuery imported but ts doesn't see usage yet
-        // Include common BLE service UUIDs in optionalServices to allow access
         const result = await connectToBLEDevice()
 
-        ui.addBluetoothDevice(result.device, result.capabilities)
-        ui.showBluetoothStatus(`✓ Connecting to ${result.device.name || 'Unknown Device'}`)
+        console.info('BLE Connection Result', result  )
 
-        const characteristics = extractCharacteristics( result.capabilities )
-        const midiCharacteristic:BluetoothRemoteGATTCharacteristic|undefined = extractMIDICharacteristic(characteristics)
-
-        if (midiCharacteristic) 
+        // Check to see if everything is ok
+        if (!result || !result.characteristic) 
         {
-            console.warn('MIDI Device was located using BLE', {
-                characteristic: midiCharacteristic,
-                uuid: midiCharacteristic.uuid,
-                writable: midiCharacteristic.properties?.write || midiCharacteristic.properties?.writeWithoutResponse,
-                properties: midiCharacteristic.properties
-            })
-            bluetoothMIDIDevice = midiCharacteristic
-        } else {
-            console.warn('No BLE MIDI characteristic found on device')
-            ui.showBluetoothStatus(`Bluetooth device lacks MIDI ${result.device.name || 'Unknown Device'}`)
-            return
+            // Failure to locate BLE Midi capability
+            throw Error('No BLE MIDI characteristic found on device')
         }
 
-        const availableMIDIBluetoothCharacteristics = [midiCharacteristic]
+        // find all characteristics...
+        // const characteristics = extractCharacteristics( result.capabilities )
+        // const midiCharacteristic:BluetoothRemoteGATTCharacteristic|undefined = extractMIDICharacteristic(characteristics)
+        
+        // use only MIDI capable characteristic
+        bluetoothMIDICharacteristic = result.characteristic
+        bluetoothDevice = result.device
 
-        console.log("Extracted capabilities from capabilities", characteristics )
+        // ui.addBluetoothDevice( bluetoothDevice, result.capabilities)
+        ui.showBluetoothStatus(`✓ Connecting to ${bluetoothDevice.name || 'Unknown Device'}`)
+
+        console.warn('MIDI Device was located using BLE', {
+            characteristic: bluetoothMIDICharacteristic,
+            uuid: bluetoothMIDICharacteristic.uuid,
+            writable: bluetoothMIDICharacteristic.properties?.write || bluetoothMIDICharacteristic.properties?.writeWithoutResponse,
+            properties: bluetoothMIDICharacteristic.properties
+        })
+
+        // const availableMIDIBluetoothCharacteristics = characteristics
+        const availableMIDIBluetoothCharacteristics = [bluetoothMIDICharacteristic]
+
+        // console.log("Extracted capabilities from capabilities", characteristics )
 
         // monitor all characteristics for incoming data (inc. MIDI)
         const unsubs = await watchCharacteristics(availableMIDIBluetoothCharacteristics, (capability, value)=>{
@@ -413,19 +419,19 @@ const handleBluetoothConnect = async () => {
             }
         })
 
+        // Store device reference for later disconnect
         bluetoothWatchUnsubscribes = unsubs
 
-        ui.showBluetoothStatus(`✓ Connected to ${result.device.name || 'Unknown Device'}`)
-        
-        // Store device reference for later disconnect
-        bluetoothDevice = result.device
+        console.info("Bluetooth Device connected",{ result}, describeDevice( bluetoothDevice ) )
 
-        console.info("Bluetooth Device connected",{ result, characteristics}, listCharacteristics(result.capabilities), describeDevice(result.device) )
-
+        ui.showBluetoothStatus(`✓ Connected to ${bluetoothDevice.name || 'Unknown Device'}`)
         // Change button to disconnect mode
         ui.whenBluetoothDeviceRequested(disconnectBluetoothDevice)
 
+        ui.setBLEManualInputVisible(true)
+
     } catch (error: any) {
+
         ui.showBluetoothStatus(`✗ BLE Error: ${error.message || 'Failed to connect'}`)
         ui.showError( `Bluetooth connection could not be established: ${error.message || 'Failed to connect'}` )
         console.error("`Bluetooth connection could not be established",error )
@@ -458,6 +464,12 @@ const toggleWebMIDI = async () => {
         }
     }
 }
+const parseToUint8 = (s) => {
+    if (!s) return new Uint8Array()
+    const nums = s.split(',').map(x=>x.trim()).filter(x=>x.length>0).map(x=>Number(x))
+    const bytes = nums.map(n => ((n|0) & 0xFF))
+    return new Uint8Array(bytes)
+}
 
 /**
  * AudioContext is now available
@@ -477,17 +489,18 @@ const onAudioContextAvailable = async (event) => {
     ui = new UI( ALL_KEYBOARD_NOTES, onNoteOnRequestedFromKeyboard, onNoteOffRequestedFromKeyboard )
     ui.setTempo( timer.BPM )
     ui.whenTempoChangesRun( (tempo:number) => timer.BPM = tempo )
-    ui.whenBluetoothDeviceRequested( handleBluetoothConnect )
- 
+    ui.whenBluetoothDeviceRequested( handleBluetoothConnect ) 
+    ui.whenWebMIDIToggled(toggleWebMIDI)
+
+    ui.whenUserRequestsManualBLECodes(rawString => { 
+        /* parse rawString into numbers and create Uint8Array, then send to BLE */ 
+       const t = parseToUint8(rawString)
+       console.info("BLE MANUAL SEND", t)
+    })
+
     ui.onDoubleClick( () => {
         synth.setRandomTimbre()
     })
-
-
-    // Wire UI toggle
-    ui.setWebMIDIButtonText('Enable WebMIDI')
-    ui.whenWebMIDIToggled(toggleWebMIDI)
-
 
     onscreenKeyboardMIDIDevice = new MIDIDevice(ONSCREEN_KEYBOARD_NAME)
     
@@ -591,4 +604,4 @@ document.addEventListener("mousedown", onAudioContextAvailable, {once:true} )
 
 // load and complete some tests!
 // import { parseEdoScaleMicroTuningOctave } from "index.ts"
-console.warn( "TEST", mictrotonalPitches, 60, 3, "LLsLLLs", 2, 1 )
+// console.warn( "TEST", mictrotonalPitches, 60, 3, "LLsLLLs", 2, 1 )

@@ -30,6 +30,10 @@ export default class UI{
         this.elementButtonBluetoothConnect = document.getElementById(DOM_ID_BUTTON_CONNECT_BLUETOOTH)
     
         this.elementButtonWebMIDI = document.getElementById(DOM_ID_BUTTON_TOGGLE_WEBMIDI)
+        this.elementBLEManualFields = document.getElementById('ble-manual-send-fieldset')
+        this.elementBLEManualInput = document.getElementById('ble-manual-input')
+        this.elementBLEManualSendButton = document.getElementById('btn-send-ble-manual')
+     
         this.elementErrorDialog = document.getElementById(DOM_ID_DIALOG_ERROR )
         
         this.wallpaperCanvas = document.getElementById("wallpaper")
@@ -91,6 +95,43 @@ export default class UI{
         this.elementButtonWebMIDI.addEventListener('click', e => {
             callback && callback()
         })
+    }
+
+    /**
+     * Register a callback that will be invoked when the user requests a manual BLE send.
+     * The callback receives the raw input string (commas allowed) so the caller can parse it
+     * into a Uint8Array or other form for sending.
+     * @param {Function} callback (value: string) => void
+     */
+    whenUserRequestsManualBLECodes(callback){
+        if (!this.elementBLEManualSendButton || !this.elementBLEManualInput) return
+        const doSend = () => {
+            const raw = String(this.elementBLEManualInput.value || '').trim()
+            callback && callback(raw)
+        }
+        this.elementBLEManualSendButton.addEventListener('click', e => doSend())
+        // allow Enter key in the input to trigger send
+        this.elementBLEManualInput.addEventListener('keydown', e => {
+            if (e.key === 'Enter') { e.preventDefault(); doSend() }
+        })
+    }
+
+    /**
+     * Toggle visibility of the manual BLE input and send button.
+     * @param {boolean} visible
+     */
+    setBLEManualInputVisible(visible){
+        if (this.elementBLEManualFields)
+        { 
+            this.elementBLEManualFields.hidden = !visible
+        }
+    }
+
+    /**
+     * Convenience method to reveal the manual BLE input once a Bluetooth connection is established.
+     */
+    showBLEManualInputOnBluetoothConnected(){
+        this.setBLEManualInputVisible(true)
     }
 
     whenTempoChangesRun(callback){

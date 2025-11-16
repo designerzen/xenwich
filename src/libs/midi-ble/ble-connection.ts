@@ -122,10 +122,12 @@ export async function requestAndConnect(
 
 	if (!device.gatt) 
 	{
-		throw new Error('Device does not support GATT')
+		throw new Error('BLE Device does not support GATT')
 	}
 
 	const server = await device.gatt.connect()
+
+	// listen for disconnects
 	device.addEventListener(BLUETOOTH_STATE_GATT_DISCONNECTED, onGattDisconnected)
 	
 	return { device, server }
@@ -327,28 +329,41 @@ export function disconnectDevice(device: BluetoothDevice | null | undefined): vo
 
 /**
  * Convenience: request a device using filters and return its capabilities
+ * It is set up by default to filter only BLE MIDI devices.
  */
-export async function connectToBLEDevice(options: BLERequestOptions = {}): Promise<{ device: BluetoothDevice; server:BluetoothRemoteGATTServer, capabilities: CapabilitiesResult }> {
+export async function connectToBLEDevice(options: BLERequestOptions = {}): Promise<{ device: BluetoothDevice; server:BluetoothRemoteGATTServer, characteristic:BluetoothRemoteGATTCharacteristic }> {
 	
 	options = Object.assign( {}, { 
-		acceptAll: true,
+		// don't accept all by default!
+		acceptAll: false,
+		// instead prefer to filter by devices
 		filters:[{
 			services: [BLE_SERVICE_UUID_MIDI]
 		}],
-		optionalServices: [ BLE_SERVICE_UUID_MIDI, BLE_SERVICE_UUID_DEVICE_INFO ]
+		// optionalServices: [ BLE_SERVICE_UUID_MIDI, BLE_SERVICE_UUID_DEVICE_INFO ]
 	}, options)
 
-	const { device, server } = await requestAndConnect(options)
-	
-	// ensure this is midi capable
-	const service:BluetoothRemoteGATTService = await server.getPrimaryService(BLE_SERVICE_UUID_MIDI)
-	const characteristic:BluetoothRemoteGATTCharacteristic = await service.getCharacteristic(MIDI_CHARACTERISTIC_UUID)
+	try{
+		const { device, server } = await requestAndConnect(options)
+		
+		// ensure this is midi capable
+		const service:BluetoothRemoteGATTService = await server.getPrimaryService(BLE_SERVICE_UUID_MIDI)
+		// fetch the MIDI BLE characteristic
+		const characteristic:BluetoothRemoteGATTCharacteristic = await service.getCharacteristic(MIDI_CHARACTERISTIC_UUID)
+		// wait for notifications
+		await characteristic.startNotifications()
+		// Add value change listener
+      	characteristic.addEventListener(BLUETOOTH_STATE_CHARACTERISTIC_CHANGED, event => {
+			console.info( BLUETOOTH_LOG_PREFIX, "BLE device data", {event})
+		} )
+		// const capabilities = await getDeviceCapabilities(server)
+		
+		console.info( BLUETOOTH_LOG_PREFIX, "Connecting to BLE device with options", {options,  device, server, service, characteristic})
 
-	characteristic.startNotifications()
+		return { device, server, characteristic }		
 
-	const capabilities = await getDeviceCapabilities(server)
-	
-	console.info( BLUETOOTH_LOG_PREFIX, "Connecting to BLE device with options", {options,  device, server, service, characteristic, capabilities})
+	}catch(error){
+		console.error( BLUETOOTH_LOG_PREFIX, "Error connecting to BLE device", error)
+	}
 
-	return { device, server, capabilities }
 }

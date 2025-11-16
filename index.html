@@ -76,13 +76,19 @@
           <option value="locrian">Locrian</option>
         </select>
       </label>
+
+
+      <div id="midi-controls">
+        <button type="button" id="btn-connect-to-ble">Connect to Bluetooth Musical Device</button>
+        <button type="button" id="btn-toggle-webmidi">Connect to WebMIDI Device</button>
+        <fieldset id="ble-manual-send-fieldset" hidden>
+          <label for="ble-manual-input">Manual BLE Send:</label>
+          <input id="ble-manual-input" type="text" placeholder="Enter bytes e.g. 144,60,127" />
+          <button type="button" id="btn-send-ble-manual">Send BLE</button>
+        </fieldset>
+      </div>
+      
     </form>
-
-
-    <div style="display:inline-block">
-      <button type="button" id="btn-connect-to-ble">Connect to Bluetooth Musical Device</button>
-      <button type="button" id="btn-toggle-webmidi">Enable WebMIDI</button>
-    </div>
 
     <!-- AudioTool integration -->
     <div id="app"></div>
