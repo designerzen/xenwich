@@ -1,19 +1,26 @@
 import './assets/style/index.scss'
 
+import { DEFAULT_OPTIONS } from './options.ts'
+
 import * as Commands from './commands.ts'
 
 import State from './libs/state.ts'
-import { DEFAULT_OPTIONS } from './options.ts'
 import UI from './components/ui.js'
+
 import { WebMidi } from 'webmidi'
 import {
     sendBLENoteOn, sendBLENoteOff,
     sendBLEControlChange, sendBLEProgramChange,
     sendBLEPolyphonicAftertouch, sendBLEChannelAftertouch,
-    sendBLEPitchBend
+    sendBLEPitchBend,
+    startBLECharacteristicStream
 } from './libs/midi-ble/midi-ble.ts'
-
-import { connectToBLEDevice, disconnectDevice, listCharacteristics, describeDevice, extractCharacteristics, watchCharacteristics, extractMIDICharacteristic } from './libs/midi-ble/ble-connection.ts' // disconnectDevice may be used for cleanup
+import { 
+    connectToBLEDevice, 
+    disconnectBLEDevice, 
+    listCharacteristics, extractCharacteristics, extractMIDICharacteristic, watchCharacteristics,
+    describeDevice 
+} from './libs/midi-ble/ble-connection.ts' // disconnectDevice may be used for cleanup
 
 import AudioTimer from './libs/audiobus/timing/timer.audio.js'
 import MIDIDevice from './libs/audiobus/midi/midi-device.ts'
@@ -24,6 +31,7 @@ import NoteModel from './libs/audiobus/note-model.ts'
 import { parseEdoScaleMicroTuningOctave } from './libs/pitfalls/ts/index.ts'
 import { addKeyboardDownEvents } from './libs/keyboard.ts'
 import { BLE_SERVICE_UUID_DEVICE_INFO, BLE_SERVICE_UUID_MIDI } from './libs/midi-ble/ble-constants.ts'
+
 import jzz from 'jzz'
 
 // import { AudioContext, BiquadFilterNode } from "standardized-audio-context"
@@ -37,11 +45,15 @@ let timeLastBarBegan = 0
 let audioContext:AudioContext
 
 // BLE devices and characteristics
+// TODO: Move into a MIDIDevice wrapper to allow for multiple
+// MIDI devices simultaneously
 let bluetoothMIDICharacteristic:BluetoothRemoteGATTCharacteristic
 let bluetoothDevice:BluetoothDevice | null
 let bluetoothWatchUnsubscribes: Array<() => Promise<void>> = []
+let bluetoothPacketQueue:Array<number>|undefined
 
 let webMIDIEnabled:boolean = false
+let selectedMIDIChannel:number = 1  // User-selected MIDI output channel (1-16)
 
 // this is just a buffer for the onscreen keyboard
 let onscreenKeyboardMIDIDevice:MIDIDevice
@@ -195,13 +207,14 @@ const onNoteOnRequestedFromKeyboard = (noteModel:NoteModel, fromDevice:string=ON
     if (bluetoothMIDICharacteristic)
     {
         // Send actual note from keyboard to BLE MIDI device
-        sendBLENoteOn( bluetoothMIDICharacteristic, 1, noteModel.noteNumber, 100 )
+        sendBLENoteOn( bluetoothMIDICharacteristic, selectedMIDIChannel, noteModel.noteNumber, 127, bluetoothPacketQueue )
             .then( result => {
-                console.log('Sent MIDI NOTE ON to BLE device!', { note: noteModel.noteNumber, result } )
+                console.log('Sent MIDI NOTE ON to BLE device!', { note: noteModel.noteNumber, channel: selectedMIDIChannel, result } )
             })
             .catch( err => {
                 console.error('Failed to send MIDI NOTE ON to BLE device!', { 
                     note: noteModel.noteNumber, 
+                    channel: selectedMIDIChannel,
                     error: err && err.message ? err.message : String(err),
                     device: bluetoothMIDICharacteristic
                 })
@@ -232,13 +245,14 @@ const onNoteOffRequestedFromKeyboard = (noteModel:NoteModel, fromDevice:string=O
     if (bluetoothMIDICharacteristic)
     {
         // Send actual note from keyboard to BLE MIDI device
-        sendBLENoteOff( bluetoothMIDICharacteristic, 1, noteModel.noteNumber, 0 )
+        sendBLENoteOff( bluetoothMIDICharacteristic, selectedMIDIChannel, noteModel.noteNumber, 0, bluetoothPacketQueue )
             .then( result => {
-                console.log('Sent MIDI NOTE OFF to BLE device!', { note: noteModel.noteNumber, result } )
+                console.log('Sent MIDI NOTE OFF to BLE device!', { note: noteModel.noteNumber, channel: selectedMIDIChannel, result } )
             })
             .catch( err => {
                 console.error('Failed to send MIDI NOTE OFF to BLE device!', { 
                     note: noteModel.noteNumber, 
+                    channel: selectedMIDIChannel,
                     error: err && err.message ? err.message : String(err),
                     device: bluetoothMIDICharacteristic
                 })
@@ -344,7 +358,7 @@ const disconnectBluetoothDevice = async () => {
     
     // Disconnect the GATT server
     if (bluetoothDevice) {
-        disconnectDevice(bluetoothDevice)
+        disconnectBLEDevice(bluetoothDevice)
     }
     
     // Clear references
@@ -382,6 +396,9 @@ const handleBluetoothConnect = async () => {
         // use only MIDI capable characteristic
         bluetoothMIDICharacteristic = result.characteristic
         bluetoothDevice = result.device
+
+        // pass this into the 
+        bluetoothPacketQueue = startBLECharacteristicStream( bluetoothMIDICharacteristic )
 
         // ui.addBluetoothDevice( bluetoothDevice, result.capabilities)
         ui.showBluetoothStatus(`✓ Connecting to ${bluetoothDevice.name || 'Unknown Device'}`)
@@ -491,6 +508,10 @@ const onAudioContextAvailable = async (event) => {
     ui.whenTempoChangesRun( (tempo:number) => timer.BPM = tempo )
     ui.whenBluetoothDeviceRequested( handleBluetoothConnect ) 
     ui.whenWebMIDIToggled(toggleWebMIDI)
+    ui.whenMIDIChannelSelected((channel:number) => {
+        selectedMIDIChannel = channel
+        console.log(`[MIDI Channel] Selected channel ${channel}`)
+    })
 
     ui.whenUserRequestsManualBLECodes(rawString => { 
         /* parse rawString into numbers and create Uint8Array, then send to BLE */ 

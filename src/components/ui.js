@@ -7,6 +7,7 @@ const DOM_ID_MIDI_OUTPUTS = "midi-output-commands"
 const DOM_ID_MIDI_DEVICES = "midi-devices"
 const DOM_ID_CLOCK = "clock"
 const DOM_ID_SELECTOR_SCALE = "scale-selector"
+const DOM_ID_SELECTOR_MIDI_CHANNEL = "midi-channel-selector"
 const DOM_ID_RANGE_TEMPO = "tempo"
 const DOM_ID_BPM = "bpm"
 const DOM_ID_BUTTON_CONNECT_BLUETOOTH = "btn-connect-to-ble"
@@ -24,6 +25,7 @@ export default class UI{
         
         this.elementClock = document.getElementById(DOM_ID_CLOCK)
         this.elementScaleSelector = document.getElementById(DOM_ID_SELECTOR_SCALE)
+        this.elementMIDIChannelSelector = document.getElementById(DOM_ID_SELECTOR_MIDI_CHANNEL)
         this.elementTempo = document.getElementById(DOM_ID_RANGE_TEMPO)
         this.elementBPM = document.getElementById(DOM_ID_BPM)
         
@@ -148,6 +150,18 @@ export default class UI{
      */
     whenNewScaleIsSelected(callback){
         this.elementScaleSelector.addEventListener("change", e=>callback(this.elementScaleSelector.value) )
+    }
+
+    /**
+     * Register a callback when MIDI channel selection changes.
+     * @param {Function} callback (channel: number) => void
+     */
+    whenMIDIChannelSelected(callback){
+        if (!this.elementMIDIChannelSelector) return
+        this.elementMIDIChannelSelector.addEventListener("change", e => {
+            const channel = Number(this.elementMIDIChannelSelector.value)
+            callback && callback(channel)
+        })
     }
 
     /**

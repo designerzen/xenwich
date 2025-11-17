@@ -20,14 +20,14 @@
  * header byte and 7 bits from the timestamp byte.
  */
 import {
-    MIDI_ACTIVE_SENSING, MIDI_CHANNEL_PRESSURE, MIDI_CONTROL_CHANGE, MIDI_TYPES, MIDI_NOTE_OFF, MIDI_NOTE_ON, MIDI_PITCH_BEND, MIDI_POLYPHONIC_KEY_PRESSURE, MIDI_PROGRAM_CHANGE, 
+    MIDI_ACTIVE_SENSING, MIDI_CHANNEL_PRESSURE, MIDI_CONTROL_CHANGE, MIDI_TYPES, MIDI_NOTE_OFF, MIDI_NOTE_ON, MIDI_PITCH_BEND, MIDI_POLYPHONIC_KEY_PRESSURE, MIDI_PROGRAM_CHANGE,
     getMIDIChannelEncoded, getMIDIStatusBytesFromNibbleAndChannel, getMIDIStatusBytesFromByteAndChannel
 } from './midi-constants.ts'
 
 // Type Definitions & Interfaces
 interface MidiCallback {
     setCharacteristicChannel(uuid: string, channel: number): void
-    setCharacteristic(characteristic: any): void
+    setCharacteristic(characteristic: BluetoothRemoteGATTCharacteristic): void
     noteOff(data: { note: number; channel: number }): void
     noteOn(data: { note: number; velocity: number; channel: number }): void
     controlChange(data: { controlNumber: number; value: number; channel: number }): void
@@ -48,76 +48,6 @@ interface TimestampBytes {
 
 const MIDI_LOG_PREFIX = '[MIDI-BLE]'
 
-// RX MIDI Data Handler --------------------------------------------------------------------------------------
-
-/**
- * Parse MIDI data from BLE characteristic
- * 
- * @param data array of numbers from BLE characteristic
- * @returns {Object}
- */
-const parseBluetoothLightDataPacket = (data: number[]): ParsedMidiData | false => {
-    const status:number = data[2]
-
-    if (status === MIDI_ACTIVE_SENSING) {
-        return false
-    }
-
-    const channel:number = (status & 0xf) + 1
-    const type:number = status >> 4
-
-    const data1:number = data[3]
-    const data2:number = data[4]
-
-    return { type, channel, data1, data2 }
-}
-
-/**
- * Handle incoming MIDI data from BLE characteristic
- * via this delicous curry
- * 
- * @param uuid 
- * @param callback 
- * @returns Function
- */
-const createBlueToothLightDataReceivedCallback = (uuid: string, callback: MidiCallback) => (data: any): void => {
-    const array: number[] = Array.from(data)
-    const result:ParsedMidiData|false = parseBluetoothLightDataPacket(array)
-    
-    if (!result) {
-        return
-    }
-
-    const { type, channel, data1, data2 }:ParsedMidiData = result
-  
-    console.log(`type: ${MIDI_TYPES[type]} channel: ${channel} data1: ${data1} data2: ${data2}`)
-
-    if (channel !== null) {
-        callback.setCharacteristicChannel(uuid, channel)
-    }
-
-    if (type === MIDI_NOTE_ON) {
-
-        if (data2 === 0) {
-            callback.noteOff({ note: data1, channel })
-        } else {
-            callback.noteOn({ note: data1, velocity: data2, channel })
-        }
-
-    } else if (type === MIDI_NOTE_OFF) {
-        callback.noteOff({ note: data1, channel })
-    } else if (type === MIDI_CONTROL_CHANGE) {
-        callback.controlChange({ controlNumber: data1, value: data2, channel })
-    } else if (type === MIDI_POLYPHONIC_KEY_PRESSURE) {
-        // TODO: Polyphonic aftertouch not implemented
-    } else if (type === MIDI_PROGRAM_CHANGE) {
-        callback.programChange({ controlNumber: data1, value: data2, channel })
-    } else if (type === MIDI_CHANNEL_PRESSURE) {
-        // TODO: Channel aftertouch not implemented
-    } else if (type === MIDI_PITCH_BEND) {
-        // TODO: Pitch bend not implemented
-    }
-}
 
 
 // TX MIDI Data Creator --------------------------------------------------------------------------------------
@@ -155,37 +85,145 @@ const createBlueToothLightDataReceivedCallback = (uuid: string, callback: MidiCa
  * @param time 
  * @returns TimestampBytes
  */
-const getTimestampBytes = ( time?:number|undefined ): TimestampBytes => {
+const getTimestampBytes = (time?: number | undefined): TimestampBytes => {
     // BLE MIDI timestamp is 13 bits, split into 2 bytes: header (MSB) + messageTimestamp (LSB)
     // NB. Use a small relative timestamp instead of Date.now() to avoid truncation issues
     const timestamp = (time ?? performance.now()) & 8191
-    return { 
-        header:((timestamp >> 7) | 0x80) & 0xBF,
+    return {
+        // timestampHigh
+        header: ((timestamp >> 7) | 0x80) & 0xBF,
+        // timestampLow
         messageTimestamp: (timestamp & 0x7F) | 0x80
     }
 }
 
-// Using Date.now()
-// const getTimestampBytes = () => {
-//   const d = Date.now().toString(2).split('').reverse();
-//   const byte0 = ['1', '0', d[12], d[11], d[10], d[9], d[8], d[7]];
-//   const byte1 = ['1', d[6], d[5], d[4], d[3], d[2], d[1], d[0]];
-//   return {
-//     header: parseInt(byte0.join(''), 2),
-//     messageTimestamp: parseInt(byte1.join(''), 2)
-//   }
-// }
-
-
-const toHex = (n:number):string => `0x${n.toString(16).padStart(2, '0')}`
+const toHex = (n: number, prependOx:boolean=false): string => `${prependOx ? '0x' : ''}${n.toString(16).padStart(2, '0')}`
 
 // MIDI Transactions --------------------------------------------------------------------------------------
 
+
+/**
+ * Take a packet and inspect it for what it is meant to achieve
+ * and debug any issues that may be present
+ * TODO: add extra functionality
+ * 
+ * @param characteristic 
+ * @param header 
+ * @param messageTimestamp 
+ * @param midiStatus 
+ * @param midiFirstCommand 
+ * @param midiSecondCommand 
+ * @param packet 
+ * @param _runningTotal 
+ */
+export const describePacket = (
+    characteristic:BluetoothRemoteGATTCharacteristic, 
+    header: number, messageTimestamp: number, 
+    midiStatus: number, midiFirstCommand: number, midiSecondCommand: number, 
+    packet:Array<number>, _runningTotal?:Array<number>
+) => {
+    console.log(MIDI_LOG_PREFIX, 'Packet:', {
+        header:toHex(header, true),
+        messageTimestamp:toHex(messageTimestamp, true),
+        midiStatus: toHex(midiStatus, true),
+        midiAction: MIDI_TYPES[midiStatus],
+        midiFirstCommand,
+        midiSecondCommand,
+        packetBytes: Array.from(packet).map(b => toHex(b, true)),
+        packet,
+        characteristic,
+        queue:_runningTotal ? _runningTotal : []
+    })
+}
+
 /**
  * TODO: Create MIDI 2.0 compliant packets
+ * https://midi.org/midi-over-bluetooth-low-energy-ble-midi
+ * Create a BLE MIDI Packet from components
+ * 
+ * @param header 
+ * @param messageTimestamp 
+ * @param midiStatus 
+ * @param midiFirstCommand 
+ * @param midiSecondCommand 
+ * @returns 
+ */
+export const createBLEPacket = (messageTimestamp: number, midiStatus: number, midiFirstCommand: number, midiSecondCommand: number, header?: number):Array<number> => {
+    const packet = [
+        messageTimestamp,
+        midiStatus,
+        midiFirstCommand & 0x7f,
+        midiSecondCommand & 0x7f
+    ]
+    if (header !== undefined) {
+        packet.unshift(header)
+    }
+    return packet
+}
+
+/**
+ * Send Bluetooth Light Packet to Bluetooth Characteristic
+ * @param characteristic 
+ * @param packet 
+ * @returns 
+ */
+export const sendBLEPacket = async (characteristic: BluetoothRemoteGATTCharacteristic, packet: Uint8Array) => {
+    try {
+        await characteristic.writeValue(packet)
+        console.log(MIDI_LOG_PREFIX, 'Packet sent successfully', packet)
+        return true
+    } catch (err: any) {
+
+        console.error(MIDI_LOG_PREFIX, 'Failed to send packet:', {
+            error: err && err.message ? err.message : String(err),
+            packet,
+            characteristic: characteristic ? characteristic.uuid : 'no uuid'
+        })
+    }
+    return false
+}
+
+
+/**
+ * Add data to the runningTotal which allows for many
+ * commands to be sent within the specified resolution
+ * 
+ * @param runningTotal 
+ * @param characteristic 
+ * @param midiStatus 
+ * @param midiFirstCommand
+ * @param midiSecondCommand 
+ * @param timestamp
+ * @returns 
+ */
+export const queueBLEPacket = async (runningTotal: Array<number>, characteristic: BluetoothRemoteGATTCharacteristic, midiStatus: number, midiFirstCommand: number, midiSecondCommand: number = 0, timestamp: number | undefined = undefined) => {
+    const { header, messageTimestamp }: TimestampBytes = getTimestampBytes(timestamp)
+    const packet: Array<number> = createBLEPacket(messageTimestamp, midiStatus, midiFirstCommand, midiSecondCommand, runningTotal.length === 0 ? header : undefined)
+
+    describePacket(characteristic, header, messageTimestamp, midiStatus, midiFirstCommand, midiSecondCommand, packet, runningTotal)
+    // add to running sequence
+    runningTotal.push(...packet)
+    return true
+}
+
+/**
+ * Take all the commands in the queue and send them at once
+ * then clear out the queue ready for next expressions
+ * @param characteristic 
+ * @param runningTotal 
+ */
+export const dispatchBLEQueue = async (characteristic:BluetoothRemoteGATTCharacteristic, runningTotal: Array<number>) => {
+    sendBLEPacket(characteristic, new Uint8Array(runningTotal))
+    runningTotal.length = 0
+}
+
+/**
  * Send data to the BTLE characteristic
  * BLE-MIDI packets are a repetition of 
  * [header][timestamp][data...][timestamp][data...] ...
+ * so we can either send many one after another but any simultaneous
+ * messages need to be packed into a single packet so we create a 
+ * single rynning thread
  * 
  * @param characteristic 
  * @param midiStatus 
@@ -194,48 +232,46 @@ const toHex = (n:number):string => `0x${n.toString(16).padStart(2, '0')}`
  * @param timestamp
  * @returns 
  */
-const dispatchBLEPacket = async ( characteristic:any, midiStatus:number, midiFirstCommand:number, midiSecondCommand:number = 0, timestamp:number|undefined=undefined ) => {
-    const { header, messageTimestamp }:TimestampBytes = getTimestampBytes(timestamp)
-    const packet:Uint8Array = new Uint8Array([
-        header, 
-        messageTimestamp, 
-        midiStatus, 
-        midiFirstCommand & 0x7f, 
-        midiSecondCommand & 0x7f
-    ])
-    
-    console.log(MIDI_LOG_PREFIX, 'Sending packet:', {
-        header: `0x${header.toString(16).padStart(2, '0')}`,
-        messageTimestamp: `0x${toHex(messageTimestamp)}`,
-        midiStatus: `0x${toHex(midiStatus)}`,
-        midiAction: MIDI_TYPES[midiStatus],
-        midiFirstCommand,
-        midiSecondCommand,
-        packetBytes: Array.from(packet).map(b => `0x${toHex(b)}` ),
-        packet,
-        characteristic
-    })
-    
-    try {
-        await characteristic.writeValue(packet)
-        console.log(MIDI_LOG_PREFIX, 'Packet sent successfully', packet )
-        return true
+export const dispatchBLEPacket = async (
+    characteristic: BluetoothRemoteGATTCharacteristic, 
+    midiStatus: number, 
+    midiFirstCommand: number, 
+    midiSecondCommand: number = 0, 
+    timestamp: number | undefined = undefined
+) => {
 
-    } catch (err: any) {
+    const { header, messageTimestamp }: TimestampBytes = getTimestampBytes(timestamp)
+    const packet: Array<number> = createBLEPacket(messageTimestamp, midiStatus, midiFirstCommand, midiSecondCommand, header)
 
-        console.error(MIDI_LOG_PREFIX, 'Failed to send packet:', {
-            error: err && err.message ? err.message : String(err),
-            packet,
-            characteristic: characteristic ? characteristic.uuid : 'no uuid'
-        })
-        throw err
-    }
+    describePacket(characteristic, header, messageTimestamp, midiStatus, midiFirstCommand, midiSecondCommand, packet )
 
-    return false
+    return sendBLEPacket(characteristic, new Uint8Array(packet))
 }
 
+/**
+ * Note, for sending single commands you do not need to use 
+ * the runningTotal but if you want to stream data as recommended 
+ * by the Bluetooth Spec, which recommends sending data at regular 
+ * intervals so that the data does not congest the airwaves,
+ * a method for that is below. Call this method *before* calling 
+ * the sendBLE methods and use the output from this method as the 
+ * final argument parameter "_runningTotal" in the subsequent calls
+ * 
+ * @param characteristic 
+ * @param interval - anything above 1 is allowed (4-10 is a good compromise)
+ */
+export const startBLECharacteristicStream = ( characteristic:BluetoothRemoteGATTCharacteristic, interval:number = 10 ):Array<number> => {
+    let runningTotal:Array<number> = []
+    setInterval( ()=>{
+        // this happens after every "interval"
+        if (runningTotal.length > 0){
+            console.info("SENDING MIDI stack", runningTotal)
+            dispatchBLEQueue( characteristic, runningTotal)
+        }
 
-
+    }, Math.max(interval, 1))
+    return runningTotal
+}
 
 /**
  * Send MIDI Note On message via BLE
@@ -243,19 +279,22 @@ const dispatchBLEPacket = async ( characteristic:any, midiStatus:number, midiFir
  * @param characteristic 
  * @param channel (1-16)
  * @param note 
- * @param velocity 
+ * @param velocity (0-127)
+ * @param _runningTotal if you want to send lots of data in one packet
  * @returns {Promise}
  */
 export const sendBLENoteOn = async (
     characteristic: BluetoothRemoteGATTCharacteristic,
     channel: number | null,
     note: number,
-    velocity: number
+    velocity: number = 127,
+    _runningTotal: Array<number> | undefined = undefined
 ): Promise<boolean | null> => {
- 
     // no channel to send to, so exit early
     if (channel === null) { return null }
-    return await dispatchBLEPacket( characteristic, getMIDIStatusBytesFromNibbleAndChannel( MIDI_NOTE_ON, channel ), note, velocity )
+    return _runningTotal ?
+        await queueBLEPacket(_runningTotal, characteristic, getMIDIStatusBytesFromNibbleAndChannel(MIDI_NOTE_ON, channel), note, velocity) :
+        await dispatchBLEPacket(characteristic, getMIDIStatusBytesFromNibbleAndChannel(MIDI_NOTE_ON, channel), note, velocity)
 }
 
 /**
@@ -271,10 +310,13 @@ export const sendBLENoteOff = async (
     characteristic: BluetoothRemoteGATTCharacteristic,
     channel: number | null,
     note: number,
-    velocity: number = 0
+    velocity: number = 0,
+    _runningTotal: Array<number> | undefined = undefined
 ): Promise<boolean | null> => {
     if (channel === null) { return null }
-    return await dispatchBLEPacket( characteristic, getMIDIStatusBytesFromNibbleAndChannel( MIDI_NOTE_OFF, channel ), note, velocity )
+    return _runningTotal ?
+        await queueBLEPacket(_runningTotal, characteristic, getMIDIStatusBytesFromNibbleAndChannel(MIDI_NOTE_OFF, channel), note, velocity) :
+        await dispatchBLEPacket(characteristic, getMIDIStatusBytesFromNibbleAndChannel(MIDI_NOTE_OFF, channel), note, velocity)
 }
 
 /**
@@ -290,11 +332,14 @@ export const sendBLEControlChange = async (
     characteristic: BluetoothRemoteGATTCharacteristic,
     channel: number | null,
     controlNumber: number,
-    value: number
+    value: number,
+    _runningTotal: Array<number> | undefined = undefined
 ): Promise<boolean | null> => {
     // no channel to send to, so exit early
     if (channel === null) { return null }
-    return await dispatchBLEPacket( characteristic, getMIDIStatusBytesFromByteAndChannel(MIDI_CONTROL_CHANGE, channel), controlNumber, value )
+    return _runningTotal ?
+        await queueBLEPacket(_runningTotal, characteristic, getMIDIStatusBytesFromByteAndChannel(MIDI_CONTROL_CHANGE, channel), controlNumber, value) :
+        await dispatchBLEPacket(characteristic, getMIDIStatusBytesFromByteAndChannel(MIDI_CONTROL_CHANGE, channel), controlNumber, value)
 }
 
 /**
@@ -308,11 +353,14 @@ export const sendBLEControlChange = async (
 export const sendBLEProgramChange = async (
     characteristic: BluetoothRemoteGATTCharacteristic,
     channel: number | null,
-    program: number
+    program: number,
+    _runningTotal: Array<number> | undefined = undefined
 ): Promise<boolean | null> => {
     // no channel to send to, so exit early
     if (channel === null) { return null }
-    return await dispatchBLEPacket( characteristic, getMIDIStatusBytesFromByteAndChannel( MIDI_PROGRAM_CHANGE, channel), program )
+    return _runningTotal ?
+        await queueBLEPacket(_runningTotal, characteristic, getMIDIStatusBytesFromByteAndChannel(MIDI_PROGRAM_CHANGE, channel), program) :
+        await dispatchBLEPacket(characteristic, getMIDIStatusBytesFromByteAndChannel(MIDI_PROGRAM_CHANGE, channel), program)
 }
 
 
@@ -329,11 +377,14 @@ export const sendBLEPolyphonicAftertouch = async (
     characteristic: BluetoothRemoteGATTCharacteristic,
     channel: number | null,
     note: number,
-    pressure: number
+    pressure: number,
+    _runningTotal: Array<number> | undefined = undefined
 ): Promise<boolean | null> => {
     // no channel to send to, so exit early
     if (channel === null) { return null }
-    return await dispatchBLEPacket( characteristic, getMIDIStatusBytesFromByteAndChannel(MIDI_POLYPHONIC_KEY_PRESSURE, channel), note, pressure )
+    return _runningTotal ?
+        await queueBLEPacket(_runningTotal, characteristic, getMIDIStatusBytesFromByteAndChannel(MIDI_POLYPHONIC_KEY_PRESSURE, channel), note, pressure) :
+        await dispatchBLEPacket(characteristic, getMIDIStatusBytesFromByteAndChannel(MIDI_POLYPHONIC_KEY_PRESSURE, channel), note, pressure)
 }
 
 /**
@@ -347,11 +398,14 @@ export const sendBLEPolyphonicAftertouch = async (
 export const sendBLEChannelAftertouch = async (
     characteristic: BluetoothRemoteGATTCharacteristic,
     channel: number | null,
-    pressure: number
+    pressure: number,
+    _runningTotal: Array<number> | undefined = undefined
 ): Promise<boolean | null> => {
     // no channel to send to, so exit early
     if (channel === null) { return null }
-    return await dispatchBLEPacket( characteristic, getMIDIStatusBytesFromByteAndChannel(MIDI_CHANNEL_PRESSURE, channel), pressure )
+    return _runningTotal ?
+        await queueBLEPacket(_runningTotal, characteristic, getMIDIStatusBytesFromByteAndChannel(MIDI_CHANNEL_PRESSURE, channel), pressure) :
+        await dispatchBLEPacket(characteristic, getMIDIStatusBytesFromByteAndChannel(MIDI_CHANNEL_PRESSURE, channel), pressure)
 }
 
 /**
@@ -367,9 +421,88 @@ export const sendBLEPitchBend = async (
     characteristic: BluetoothRemoteGATTCharacteristic,
     channel: number | null,
     lsb: number,
-    msb: number
+    msb: number,
+    _runningTotal: Array<number> | undefined = undefined
 ): Promise<boolean | null> => {
     // no channel to send to, so exit early
     if (channel === null) { return null }
-    return await dispatchBLEPacket( characteristic, getMIDIStatusBytesFromByteAndChannel(MIDI_PITCH_BEND, channel), lsb, msb )
+    return _runningTotal ?
+        await queueBLEPacket(_runningTotal, characteristic, getMIDIStatusBytesFromByteAndChannel(MIDI_PITCH_BEND, channel), lsb, msb) :
+        await dispatchBLEPacket(characteristic, getMIDIStatusBytesFromByteAndChannel(MIDI_PITCH_BEND, channel), lsb, msb)
+}
+
+
+
+
+
+// RX MIDI Incoming Data Handler --------------------------------------------------------------------------------------
+
+
+/**
+ * Parse MIDI data from BLE characteristic
+ * 
+ * @param data array of numbers from BLE characteristic
+ * @returns {Object}
+ */
+const parseBluetoothLightDataPacket = (data: number[]): ParsedMidiData | false => {
+    const status: number = data[2]
+
+    if (status === MIDI_ACTIVE_SENSING) {
+        return false
+    }
+
+    const channel: number = (status & 0xf) + 1
+    const type: number = status >> 4
+
+    const data1: number = data[3]
+    const data2: number = data[4]
+
+    return { type, channel, data1, data2 }
+}
+
+/**
+ * Handle incoming MIDI data from BLE characteristic
+ * via this delicous curry
+ * 
+ * @param uuid 
+ * @param callback 
+ * @returns Function
+ */
+const createBlueToothLightDataReceivedCallback = (uuid: string, callback: MidiCallback) => (data: any): void => {
+    const array: number[] = Array.from(data)
+    const result: ParsedMidiData | false = parseBluetoothLightDataPacket(array)
+
+    if (!result) {
+        return
+    }
+
+    const { type, channel, data1, data2 }: ParsedMidiData = result
+
+    console.log(`type: ${MIDI_TYPES[type]} channel: ${channel} data1: ${data1} data2: ${data2}`)
+
+    if (channel !== null) {
+        callback.setCharacteristicChannel(uuid, channel)
+    }
+
+    if (type === MIDI_NOTE_ON) {
+
+        if (data2 === 0) {
+            callback.noteOff({ note: data1, channel })
+        } else {
+            callback.noteOn({ note: data1, velocity: data2, channel })
+        }
+
+    } else if (type === MIDI_NOTE_OFF) {
+        callback.noteOff({ note: data1, channel })
+    } else if (type === MIDI_CONTROL_CHANGE) {
+        callback.controlChange({ controlNumber: data1, value: data2, channel })
+    } else if (type === MIDI_POLYPHONIC_KEY_PRESSURE) {
+        // TODO: Polyphonic aftertouch not implemented
+    } else if (type === MIDI_PROGRAM_CHANGE) {
+        callback.programChange({ controlNumber: data1, value: data2, channel })
+    } else if (type === MIDI_CHANNEL_PRESSURE) {
+        // TODO: Channel aftertouch not implemented
+    } else if (type === MIDI_PITCH_BEND) {
+        // TODO: Pitch bend not implemented
+    }
 }

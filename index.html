@@ -81,6 +81,27 @@
       <div id="midi-controls">
         <button type="button" id="btn-connect-to-ble">Connect to Bluetooth Musical Device</button>
         <button type="button" id="btn-toggle-webmidi">Connect to WebMIDI Device</button>
+       
+        <label for="midi-channel-selector">MIDI Channel:</label>
+        <select id="midi-channel-selector">
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+          <option value="5">5</option>
+          <option value="6">6</option>
+          <option value="7">7</option>
+          <option value="8">8</option>
+          <option value="9">9</option>
+          <option value="10">10</option>
+          <option value="11">11</option>
+          <option value="12">12</option>
+          <option value="13">13</option>
+          <option value="14">14</option>
+          <option value="15">15</option>
+          <option value="16">16</option>
+        </select>
+        
         <fieldset id="ble-manual-send-fieldset" hidden>
           <label for="ble-manual-input">Manual BLE Send:</label>
           <input id="ble-manual-input" type="text" placeholder="Enter bytes e.g. 144,60,127" />

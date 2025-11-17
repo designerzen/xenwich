@@ -9,13 +9,14 @@ export const MIDI_CONTROL_CHANGE = 0xB
 export const MIDI_PROGRAM_CHANGE = 0xC
 export const MIDI_CHANNEL_PRESSURE = 0xD
 export const MIDI_PITCH_BEND = 0xE
+
 /**
  * MIDI uses channels 0-15, but users specify 1-16, so subtract 1
  * and return as a 4 bit value
  * @param channel 
  * @returns {number}
  */
-export const getMIDIChannelEncoded = (channel:number=1) => Math.max(1, channel - 1) & 0x0f
+export const getMIDIChannelEncoded = (channel:number=1) => Math.max(0, channel - 1) & 0x0f
 
 export const getMIDIBytesFromNibble = (nibble:number) => nibble << 4
 export const getMIDIStatusBytesFromByteAndChannel = (byte:number, channel:number) => getMIDIChannelEncoded(channel) | byte

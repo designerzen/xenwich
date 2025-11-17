@@ -3,8 +3,6 @@
 // https://webbluetoothcg.github.io/web-bluetooth/#dom-requestdeviceoptions-optionalservices
 // https://www.hangar42.nl/wp-content/uploads/2017/10/BLE-MIDI-spec.pdf
 
-import { BLE_SERVICE_UUID_DEVICE_INFO, BLE_SERVICE_UUID_MIDI, BLUETOOTH_STATE_CHARACTERISTIC_CHANGED, BLUETOOTH_STATE_GATT_DISCONNECTED, MIDI_CHARACTERISTIC_UUID } from "./ble-constants"
-
 export interface BLERequestOptions {
 	// Use a broad shape so we don't depend on exact dom types in all TS configs
 	filters?: any[]
@@ -29,6 +27,16 @@ export interface CapabilitiesResult {
 	services: CapabilityService[]
 }
 
+
+import { 
+	BLE_SERVICE_UUID_DEVICE_INFO, 
+	BLE_SERVICE_UUID_MIDI, 
+	BLUETOOTH_STATE_CHARACTERISTIC_CHANGED, 
+	BLUETOOTH_STATE_GATT_DISCONNECTED, 
+	MIDI_CHARACTERISTIC_UUID 
+} from "./ble-constants.ts"
+
+
 // Describe data structures ------------------------------------------
 
 const BLUETOOTH_LOG_PREFIX = '[BLE] '
@@ -37,10 +45,10 @@ export const describeCharacteristic = (characteristic: CapabilityCharacteristic 
 	if (!characteristic) return null
 	// If we've been given a capability wrapper, prefer that
 	if ((characteristic as CapabilityCharacteristic).characteristicRef || (characteristic as CapabilityCharacteristic).properties) {
-		const cap = characteristic as CapabilityCharacteristic
+		const capability = characteristic as CapabilityCharacteristic
 		return {
-			uuid: cap.uuid,
-			properties: cap.properties
+			uuid: capability.uuid,
+			properties: capability.properties
 		}
 	}
 	// Otherwise assume it's a raw BluetoothRemoteGATTCharacteristic
@@ -60,16 +68,16 @@ export const describeService = (service: CapabilityService) => {
 }
 
 /**
- * 
+ * Describe the device as a human-readable string
  * @param device 
- * @returns 
+ * @returns {Object}
  */
 export const describeDevice = (device:BluetoothDevice) => {
 	// .gatt .gatt.connected .id .name
 	return {
-		"connected":device.gatt?.connected ?? false,
-		"id":device.id,
-		"name":device.name
+		connected:device.gatt?.connected ?? false,
+		id:device.id,
+		name:device.name
 	}
 }
 
@@ -88,7 +96,7 @@ export const extractMIDICharacteristic = (characteristics: CapabilityCharacteris
  * @param options request options: filters | acceptAll, optionalServices
  * @returns an object containing the selected device and connected GATT server
  */
-export async function requestAndConnect(
+export async function requestBLEConnection(
 	options: BLERequestOptions = {}
 ): Promise<{ device: BluetoothDevice; server: BluetoothRemoteGATTServer }> {
 	
@@ -164,7 +172,7 @@ const onGattDisconnected = (event: Event) => {
 	const device = event.target as BluetoothDevice
 	console.warn( BLUETOOTH_LOG_PREFIX, 'GATT disconnected from device', describeDevice(device))
 	// Additional handling could be added here, e.g., auto-reconnect
-	if (device && device.gatt & !device.gatt.connected)
+	if (device && device.gatt && !device.gatt.connected)
 	{
 		device.gatt.disconnect()
 	}
@@ -310,24 +318,6 @@ export const listCharacteristics = ( capabilities:CapabilitiesResult ) => {
 }
 
 /**
- * Disconnect a device if connected
- */
-export function disconnectDevice(device: BluetoothDevice | null | undefined): void {
-	if (!device){ 
-		return
-	}
-	try {
-		if (device.gatt && device.gatt.connected)
-		{
- 			device.gatt.disconnect()
-		}
-	} catch (err) {
-		// eslint-disable-next-line no-console
-		console.warn( BLUETOOTH_LOG_PREFIX, 'disconnect error', err)
-	}
-}
-
-/**
  * Convenience: request a device using filters and return its capabilities
  * It is set up by default to filter only BLE MIDI devices.
  */
@@ -340,11 +330,11 @@ export async function connectToBLEDevice(options: BLERequestOptions = {}): Promi
 		filters:[{
 			services: [BLE_SERVICE_UUID_MIDI]
 		}],
-		// optionalServices: [ BLE_SERVICE_UUID_MIDI, BLE_SERVICE_UUID_DEVICE_INFO ]
+		optionalServices: [ BLE_SERVICE_UUID_MIDI, BLE_SERVICE_UUID_DEVICE_INFO ]
 	}, options)
 
 	try{
-		const { device, server } = await requestAndConnect(options)
+		const { device, server } = await requestBLEConnection(options)
 		
 		// ensure this is midi capable
 		const service:BluetoothRemoteGATTService = await server.getPrimaryService(BLE_SERVICE_UUID_MIDI)
@@ -366,4 +356,26 @@ export async function connectToBLEDevice(options: BLERequestOptions = {}): Promi
 		console.error( BLUETOOTH_LOG_PREFIX, "Error connecting to BLE device", error)
 	}
 
+	return null
+}
+
+
+/**
+ * Disconnect a Bluetooth Low Energy Device if connected
+ */
+export function disconnectBLEDevice(device: BluetoothDevice | undefined): boolean {
+	if (!device){ 
+		return false
+	}
+	try {
+		if (device.gatt && device.gatt.connected)
+		{
+ 			device.gatt.disconnect()
+			return true
+		}
+	} catch (err) {
+		// eslint-disable-next-line no-console
+		console.warn( BLUETOOTH_LOG_PREFIX, 'disconnect error', err)
+	}
+	return false
 }
